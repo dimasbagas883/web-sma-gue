@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dasbor Admin - EduPortal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #app-shell { display: none; }
+        .nav-link.active { background-color: #eef2ff; color: #4f46e5; font-weight: 600; }
+        .modal { display: none; } .modal.active { display: flex; }
+        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; border-radius: 0.25rem; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app-shell" class="hidden h-screen bg-gray-100">
+        <!-- Sidebar -->
+        <div id="sidebar" class="w-64 bg-white shadow-lg flex-shrink-0 flex flex-col">
+            <div class="p-6 border-b"><h1 class="text-2xl font-bold text-indigo-600">EduPortal</h1></div>
+            <div class="p-4 border-b"><div id="user-profile-info"></div></div>
+            <nav id="nav-container" class="p-4 space-y-2 flex-grow"></nav>
+            <div class="p-4 border-t"><button id="logout-btn" class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i>Logout</button></div>
+        </div>
+        <!-- Konten Utama -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="flex justify-between items-center p-4 bg-white border-b"><h2 id="page-title" class="text-xl font-semibold text-gray-800">Manajemen</h2></header>
+            <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto p-6"></main>
+        </div>
+    </div>
+    <!-- Modal Container -->
+    <div id="modal-container"></div>
+
+<script>
+    const API_URL = 'http://localhost:5000';
+    const ui = {};
+
+    // =================================================================
+    // ----------- RENDER FUNCTIONS (Membuat Tampilan) -----------
+    // =================================================================
+    const render = {
+        page: (title, handler) => {
+            ui.pageTitle.textContent = title;
+            ui.mainContent.innerHTML = `<div id="content-wrapper" class="bg-white p-6 rounded-xl shadow-md min-h-full"></div>`;
+            handler(document.getElementById('content-wrapper'));
+        },
+        verifikasiPengguna: async (container) => {
+            container.innerHTML = 'Memuat pengguna yang menunggu persetujuan...';
+            const result = await apiRequest('/api/users/pending');
+            if (!result || !result.data) { container.innerHTML = '<p class="text-red-500">Gagal memuat data.</p>'; return; }
+            if (result.data.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">Tidak ada pengguna yang menunggu persetujuan saat ini.</p>';
+                return;
+            }
+            let listHTML = '';
+            result.data.forEach(user => {
+                listHTML += `<div class="p-3 border rounded-lg flex justify-between items-center mb-2"><div><p class="font-semibold">${user.name}</p><p class="text-sm text-gray-500">Mendaftar sebagai: ${user.role}</p></div><button class="bg-green-500 text-white btn-sm" onclick="handle.approveUser('${user._id}')">Setujui</button></div>`;
+            });
+            container.innerHTML = listHTML;
+        },
+        manajemenPengguna: async (container) => {
+            container.innerHTML = `Memuat data pengguna...`;
+            const result = await apiRequest('/api/users');
+            if (!result || !result.data) { container.innerHTML = '<p class="text-red-500">Gagal memuat data.</p>'; return; }
+            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="bg-gray-100"><tr><th class="p-2">Nama</th><th class="p-2">Username</th><th class="p-2">Peran</th><th class="p-2">Status</th><th class="p-2">Aksi</th></tr></thead><tbody>`;
+            result.data.forEach(user => {
+                tableHTML += `<tr class="border-b"><td class="p-2 font-medium">${user.name}</td><td class="p-2">${user.username}</td><td class="p-2">${user.role}</td><td class="p-2">${user.status}</td><td class="p-2 flex space-x-2"><button class="bg-yellow-400 text-black btn-sm" onclick='handle.openEditUserModal(${JSON.stringify(user)})'>Edit</button><button class="bg-red-500 text-white btn-sm" onclick="handle.deleteUser('${user._id}')">Hapus</button></td></tr>`;
+            });
+            tableHTML += '</tbody></table></div>';
+            container.innerHTML = tableHTML;
+        },
+        manajemenMapel: (container) => {
+            container.innerHTML = `<div id="form-mapel-container"></div><div id="list-mapel-container" class="mt-6"></div>`;
+            handle.renderMataPelajaranForm(); handle.fetchAndDisplayMataPelajaran();
+        },
+        manajemenKelas: (container) => {
+            container.innerHTML = `<div id="form-kelas-container"></div><div id="list-kelas-container" class="mt-6"></div>`;
+            handle.renderKelasForm(); handle.fetchAndDisplayKelas();
+        },
+        manajemenJadwal: (container) => {
+             container.innerHTML = `<div id="jadwal-selector-container"></div><div id="form-jadwal-container" class="mt-4"></div><div id="list-jadwal-container" class="mt-6"></div>`;
+             handle.renderJadwalSelector();
+        },
+    };
+
+    // =================================================================
+    // ----------- HANDLER FUNCTIONS (Logika Aksi) -----------
+    // =================================================================
+    const handle = {
+        approveUser: async (userId) => {
+            if (confirm('Anda yakin ingin menyetujui pengguna ini?')) {
+                await apiRequest(`/api/users/approve/${userId}`, 'PUT');
+                render.verifikasiPengguna(document.getElementById('content-wrapper'));
+            }
+        },
+        fetchAndDisplayMataPelajaran: async () => {
+            const container = document.getElementById('list-mapel-container');
+            container.innerHTML = 'Memuat data...'; const result = await apiRequest('/api/matapelajaran');
+            if (!result || !result.data) { container.innerHTML = '<p class="text-red-500">Gagal memuat data.</p>'; return; }
+            container.innerHTML = ''; if (result.data.length === 0) { container.innerHTML = '<p class="text-gray-500">Belum ada mata pelajaran.</p>'; return; }
+            result.data.forEach(mapel => { const div = document.createElement('div'); div.className = 'p-3 border rounded-lg flex justify-between items-center'; div.innerHTML = `<div><p class="font-semibold">${mapel.namaMapel}</p><p class="text-sm text-gray-500">Kode: ${mapel.kodeMapel}</p></div><div class="flex space-x-2"><button class="bg-yellow-400 text-black btn-sm" onclick="handle.renderMataPelajaranForm('${mapel._id}', '${mapel.kodeMapel}', '${mapel.namaMapel}')">Edit</button><button class="bg-red-500 text-white btn-sm" onclick="handle.deleteMapel('${mapel._id}')">Hapus</button></div>`; container.appendChild(div); });
+        },
+        renderMataPelajaranForm: (id = null, kode = '', nama = '') => {
+            const container = document.getElementById('form-mapel-container');
+            const isEditing = id !== null; container.innerHTML = `<form id="form-mapel" class="p-4 border rounded-lg bg-gray-50"><h3 class="font-semibold mb-2">${isEditing ? 'Edit Mata Pelajaran' : 'Tambah Mata Pelajaran Baru'}</h3><div class="space-y-2"><input type="hidden" id="mapelId" value="${id || ''}"><input type="text" id="kodeMapel" placeholder="Kode Mapel" class="w-full p-2 border rounded" value="${kode}" required><input type="text" id="namaMapel" placeholder="Nama Mata Pelajaran" class="w-full p-2 border rounded" value="${nama}" required><button type="submit" class="w-full text-white p-2 rounded-lg ${isEditing ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-600 hover:bg-green-700'}">${isEditing ? 'Simpan Perubahan' : 'Tambah Baru'}</button>${isEditing ? `<button type="button" class="w-full text-center mt-2 text-sm text-gray-600 hover:underline" onclick="handle.renderMataPelajaranForm()">Batal Edit</button>` : ''}</div></form>`;
+            document.getElementById('form-mapel').addEventListener('submit', handle.mapelSubmit);
+        },
+        mapelSubmit: async (e) => { e.preventDefault(); const id = document.getElementById('mapelId').value; const kodeMapel = document.getElementById('kodeMapel').value; const namaMapel = document.getElementById('namaMapel').value; const method = id ? 'PUT' : 'POST'; const endpoint = id ? `/api/matapelajaran/${id}` : '/api/matapelajaran'; await apiRequest(endpoint, method, { kodeMapel, namaMapel }); handle.fetchAndDisplayMataPelajaran(); handle.renderMataPelajaranForm(); },
+        deleteMapel: async (id) => { if (confirm('Yakin ingin menghapus mata pelajaran ini?')) { await apiRequest(`/api/matapelajaran/${id}`, 'DELETE'); handle.fetchAndDisplayMataPelajaran(); } },
+        
+        fetchAndDisplayKelas: async () => {
+            const container = document.getElementById('list-kelas-container');
+            container.innerHTML = 'Memuat data kelas...'; const result = await apiRequest('/api/kelas');
+            if (!result || !result.data) { container.innerHTML = '<p class="text-red-500">Gagal memuat data.</p>'; return; }
+            container.innerHTML = ''; result.data.forEach(kelas => { const div = document.createElement('div'); div.className = 'p-3 border rounded-lg mb-2'; const siswaList = kelas.siswa.map(s => s.name).join(', ') || 'Belum ada siswa'; div.innerHTML = `<div class="flex justify-between items-center"><div><p class="font-semibold">${kelas.namaKelas}</p><p class="text-sm text-gray-600">Wali: ${kelas.waliKelas ? kelas.waliKelas.name : 'N/A'}</p></div><div class="flex space-x-2"><button class="bg-green-500 text-white btn-sm" onclick="handle.openAddStudentModal('${kelas._id}')">Tambah Siswa</button><button class="bg-red-500 text-white btn-sm" onclick="handle.deleteKelas('${kelas._id}')">Hapus</button></div></div><div class="mt-2 pt-2 border-t text-sm"><p class="font-medium">Siswa di kelas:</p><p class="text-gray-700">${siswaList}</p></div>`; container.appendChild(div); });
+        },
+        renderKelasForm: async () => {
+            const container = document.getElementById('form-kelas-container');
+            const teachersResult = await apiRequest('/api/users/by-role/guru'); if (!teachersResult || !teachersResult.data) return;
+            const teacherOptions = teachersResult.data.map(t => `<option value="${t._id}">${t.name}</option>`).join(''); container.innerHTML = `<form id="form-kelas" class="p-4 border rounded-lg bg-gray-50"><h3 class="font-semibold mb-2">Buat Kelas Baru</h3><div class="space-y-2"><input type="text" id="namaKelas" placeholder="Nama Kelas" class="w-full p-2 border rounded" required><select id="waliKelas" class="w-full p-2 border rounded" required><option value="">Pilih Wali Kelas</option>${teacherOptions}</select><button type="submit" class="w-full text-white p-2 rounded-lg bg-green-600 hover:bg-green-700">Buat Kelas</button></div></form>`;
+            document.getElementById('form-kelas').addEventListener('submit', handle.kelasSubmit);
+        },
+        kelasSubmit: async (e) => { e.preventDefault(); const namaKelas = document.getElementById('namaKelas').value; const waliKelas = document.getElementById('waliKelas').value; await apiRequest('/api/kelas', 'POST', { namaKelas, waliKelas }); handle.fetchAndDisplayKelas(); e.target.reset(); },
+        deleteKelas: async (id) => { if (confirm('Yakin menghapus kelas ini?')) { await apiRequest(`/api/kelas/${id}`, 'DELETE'); handle.fetchAndDisplayKelas(); } },
+        openAddStudentModal: async (classId) => {
+            const studentsResult = await apiRequest('/api/users/by-role/siswa'); if (!studentsResult || !studentsResult.data) return;
+            const studentOptions = studentsResult.data.map(s => `<option value="${s._id}">${s.name}</option>`).join('');
+            ui.modalContainer.innerHTML = `<div class="modal active fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50"><div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md"><h2 class="text-xl font-bold mb-4">Tambah Siswa ke Kelas</h2><form id="add-student-form"><input type="hidden" id="add-student-classId" value="${classId}"><select id="add-student-studentId" class="w-full p-2 border rounded" required><option value="">Pilih Siswa</option>${studentOptions}</select><div class="flex justify-end space-x-4 mt-6"><button type="button" onclick="ui.modalContainer.innerHTML=''" class="bg-gray-300 px-4 py-2 rounded">Batal</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Tambahkan</button></div></form></div></div>`;
+            document.getElementById('add-student-form').addEventListener('submit', handle.addStudentSubmit);
+        },
+        addStudentSubmit: async (e) => { e.preventDefault(); const classId = document.getElementById('add-student-classId').value; const siswaId = document.getElementById('add-student-studentId').value; await apiRequest(`/api/kelas/${classId}/tambah-siswa`, 'PUT', { siswaId }); ui.modalContainer.innerHTML = ''; handle.fetchAndDisplayKelas(); },
+        
+        renderJadwalSelector: async () => {
+            const container = document.getElementById('jadwal-selector-container');
+            const kelasResult = await apiRequest('/api/kelas');
+            if (!kelasResult || !kelasResult.data) { container.innerHTML = '<p>Gagal memuat kelas.</p>'; return; }
+            const kelasOptions = kelasResult.data.map(k => `<option value="${k._id}">${k.namaKelas}</option>`).join('');
+            container.innerHTML = `<label class="block text-sm font-medium">Pilih Kelas</label><select id="kelas-selector" class="w-full p-2 border rounded mt-1"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select>`;
+            document.getElementById('kelas-selector').addEventListener('change', (e) => {
+                const kelasId = e.target.value;
+                document.getElementById('form-jadwal-container').innerHTML = ''; document.getElementById('list-jadwal-container').innerHTML = '';
+                if (kelasId) { handle.renderJadwalForm(kelasId); handle.fetchAndDisplayJadwal(kelasId); }
+            });
+        },
+        renderJadwalForm: async (kelasId) => {
+            const container = document.getElementById('form-jadwal-container');
+            const [mapelResult, guruResult] = await Promise.all([apiRequest('/api/matapelajaran'), apiRequest('/api/users/by-role/guru')]);
+            if (!mapelResult || !guruResult) { container.innerHTML = '<p>Gagal memuat data master.</p>'; return; }
+            const mapelOptions = mapelResult.data.map(m => `<option value="${m._id}">${m.namaMapel}</option>`).join('');
+            const guruOptions = guruResult.data.map(g => `<option value="${g._id}">${g.name}</option>`).join('');
+            const hariOptions = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].map(h => `<option value="${h}">${h}</option>`).join('');
+            container.innerHTML = `<form id="form-jadwal" class="p-4 border rounded-lg bg-gray-50 grid grid-cols-2 gap-4"><h3 class="font-semibold col-span-2">Tambah Jadwal Baru</h3><input type="hidden" id="jadwal-kelas-id" value="${kelasId}"><div><label class="text-sm">Hari</label><select id="jadwal-hari" class="w-full p-2 border rounded" required>${hariOptions}</select></div><div><label class="text-sm">Mata Pelajaran</label><select id="jadwal-mapel" class="w-full p-2 border rounded" required>${mapelOptions}</select></div><div><label class="text-sm">Jam Mulai</label><input type="time" id="jadwal-jamMulai" class="w-full p-2 border rounded" required></div><div><label class="text-sm">Jam Selesai</label><input type="time" id="jadwal-jamSelesai" class="w-full p-2 border rounded" required></div><div class="col-span-2"><label class="text-sm">Guru Pengajar</label><select id="jadwal-guru" class="w-full p-2 border rounded" required>${guruOptions}</select></div><div class="col-span-2"><button type="submit" class="w-full text-white p-2 rounded-lg bg-green-600 hover:bg-green-700">Tambah</button></div></form>`;
+            document.getElementById('form-jadwal').addEventListener('submit', handle.jadwalSubmit);
+        },
+        jadwalSubmit: async (e) => { e.preventDefault(); const kelas = document.getElementById('jadwal-kelas-id').value; const body = { kelas, hari: document.getElementById('jadwal-hari').value, jamMulai: document.getElementById('jadwal-jamMulai').value, jamSelesai: document.getElementById('jadwal-jamSelesai').value, mataPelajaran: document.getElementById('jadwal-mapel').value, guru: document.getElementById('jadwal-guru').value }; await apiRequest('/api/jadwal', 'POST', body); handle.fetchAndDisplayJadwal(kelas); },
+        fetchAndDisplayJadwal: async (kelasId) => {
+            const container = document.getElementById('list-jadwal-container');
+            container.innerHTML = 'Memuat jadwal...'; const result = await apiRequest(`/api/jadwal/by-kelas/${kelasId}`);
+            if (!result || !result.data) { container.innerHTML = '<p>Gagal memuat jadwal.</p>'; return; }
+            container.innerHTML = '';
+            const jadwalByHari = result.data.reduce((acc, curr) => { (acc[curr.hari] = acc[curr.hari] || []).push(curr); return acc; }, {});
+            ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].forEach(hari => {
+                if (jadwalByHari[hari]) {
+                    const hariDiv = document.createElement('div');
+                    hariDiv.className = 'mb-4'; let jadwalHtml = `<h4 class="font-bold text-md mb-2 p-2 bg-gray-100 rounded">${hari}</h4>`;
+                    jadwalByHari[hari].sort((a,b) => a.jamMulai.localeCompare(b.jamMulai)).forEach(j => { jadwalHtml += `<div class="p-3 border rounded-lg mb-2 flex justify-between items-center"><div><p class="font-semibold">${j.jamMulai} - ${j.jamSelesai} : ${j.mataPelajaran.namaMapel}</p><p class="text-sm text-gray-600">Guru: ${j.guru.name}</p></div><button class="bg-red-500 text-white btn-sm" onclick="handle.deleteJadwal('${j._id}', '${kelasId}')">Hapus</button></div>`; });
+                    hariDiv.innerHTML = jadwalHtml; container.appendChild(hariDiv);
+                }
+            });
+            if(container.innerHTML === '') container.innerHTML = '<p class="text-gray-500">Jadwal untuk kelas ini masih kosong.</p>';
+        },
+        deleteJadwal: async (jadwalId, kelasId) => { if(confirm('Yakin menghapus entri jadwal ini?')){ await apiRequest(`/api/jadwal/${jadwalId}`, 'DELETE'); handle.fetchAndDisplayJadwal(kelasId); } },
+        
+        openEditUserModal: (user) => {
+            ui.modalContainer.innerHTML = `<div class="modal active fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50"><div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md"><h2 class="text-xl font-bold mb-4">Edit Pengguna</h2><form id="edit-user-form"><input type="hidden" id="edit-user-id" value="${user._id}"><div class="mb-4"><label class="block text-sm font-medium">Nama</label><input type="text" id="edit-user-name" class="w-full p-2 border rounded mt-1" value="${user.name}"></div><div class="mb-4"><label class="block text-sm font-medium">Peran</label><select id="edit-user-role" class="w-full p-2 border rounded mt-1"><option value="siswa">Siswa</option><option value="guru">Guru</option><option value="akademik">Akademik</option><option value="pimpinan">Pimpinan</option><option value="permission">Permission</option></select></div><div class="mb-4"><label class="block text-sm font-medium">Status</label><select id="edit-user-status" class="w-full p-2 border rounded mt-1"><option value="pending">Pending</option><option value="approved">Approved</option></select></div><div class="flex justify-end space-x-4 mt-6"><button type="button" onclick="ui.modalContainer.innerHTML=''" class="bg-gray-300 px-4 py-2 rounded">Batal</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Simpan</button></div></form></div></div>`;
+            document.getElementById('edit-user-role').value = user.role; document.getElementById('edit-user-status').value = user.status;
+            document.getElementById('edit-user-form').addEventListener('submit', handle.editUserSubmit);
+        },
+        editUserSubmit: async (e) => { e.preventDefault(); const id = document.getElementById('edit-user-id').value; const name = document.getElementById('edit-user-name').value; const role = document.getElementById('edit-user-role').value; const status = document.getElementById('edit-user-status').value; await apiRequest(`/api/users/${id}`, 'PUT', { name, role, status }); ui.modalContainer.innerHTML = ''; render.manajemenPengguna(document.getElementById('content-wrapper')); },
+        deleteUser: async (id) => { if (confirm('Yakin menghapus pengguna ini?')) { await apiRequest(`/api/users/${id}`, 'DELETE'); render.manajemenPengguna(document.getElementById('content-wrapper')); } },
+    };
+
+    // =================================================================
+    // --------------- INISIALISASI & LOGIKA UTAMA ------------------
+    // =================================================================
+    async function apiRequest(endpoint, method = 'GET', body = null) {
+        const token = localStorage.getItem('token');
+        if (!token) { logout(); return; }
+        const options = { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } };
+        if (body) options.body = JSON.stringify(body);
+        try {
+            const response = await fetch(`${API_URL}${endpoint}`, options);
+            if(response.status === 401) { logout(); return; }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Terjadi kesalahan');
+            return data;
+        } catch (error) { console.error("API Error:", error); }
+    }
+
+    function setupUI() {
+        const ids = ['app-shell','logout-btn','sidebar','user-profile-info','nav-container','main-content','page-title','modal-container'];
+        ids.forEach(id => { ui[id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase())] = document.getElementById(id); });
+    }
+    
+    function showDashboard() {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) { logout(); return; }
+        const isAdmin = ['akademik', 'permission'].includes(user.role);
+        if(!isAdmin) { logout(); return; } // Jika bukan admin, tendang
+
+        ui.appShell.style.display = 'flex';
+        renderLayout(user);
+    }
+
+    function renderLayout(user) {
+        ui.userProfileInfo.innerHTML = `<div class="w-10 h-10 bg-indigo-200 rounded-full flex items-center justify-center font-bold text-indigo-700">${user.name.charAt(0)}</div><div><p class="font-semibold">${user.name}</p><p class="text-sm text-gray-500">${user.role}</p></div>`;
+        let navItems = [
+            { text: 'Verifikasi Pengguna', icon: 'user-check', handler: () => render.page('Verifikasi Pengguna', render.verifikasiPengguna) },
+            { text: 'Manajemen Kelas', icon: 'clipboard-list', handler: () => render.page('Manajemen Kelas', render.manajemenKelas) },
+            { text: 'Manajemen Mapel', icon: 'book', handler: () => render.page('Manajemen Mata Pelajaran', render.manajemenMapel) },
+            { text: 'Manajemen Jadwal', icon: 'calendar-plus', handler: () => render.page('Manajemen Jadwal', render.manajemenJadwal) },
+        ];
+        if (user.role === 'permission') {
+            navItems.push({ text: 'Manajemen Pengguna', icon: 'users', handler: () => render.page('Manajemen Pengguna', render.manajemenPengguna) });
+        }
+
+        ui.navContainer.innerHTML = '';
+        navItems.forEach((item, index) => {
+            const link = document.createElement('a');
+            link.href = '#';
+            link.className = 'nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg';
+            if (index === 0) link.classList.add('active');
+            link.innerHTML = `<i data-lucide="${item.icon}" class="w-5 h-5 mr-3"></i><span>${item.text}</span>`;
+            link.onclick = (e) => { e.preventDefault(); document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); link.classList.add('active'); item.handler(); };
+            ui.navContainer.appendChild(link);
+        });
+        lucide.createIcons();
+        if (navItems.length > 0) navItems[0].handler();
+    }
+    const logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        setupUI();
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        showDashboard();
+        ui.logoutBtn.addEventListener('click', logout);
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Dependencies
+/node_modules
+
+# Production
+/build
+
+# File-file lain
+.DS_Store
+
+# File Environment (Sangat Penting untuk Keamanan)
+.env
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
