@@ -13,9 +13,15 @@ const TugasNilaiSchema = new mongoose.Schema({
         required: true
     },
     jenis: {
-        type: String, // Contoh: "Tugas Harian", "Ujian Tengah Semester", "Ujian Akhir"
+        type: String,
         enum: ['TUGAS', 'UTS', 'UAS'],
         required: true
+    },
+    // --- TAMBAHAN KRUSIAL ---
+    // Menghubungkan nilai ini ke tugas spesifik (jika jenisnya TUGAS)
+    tugas: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tugas'
     },
     deskripsi: {
         type: String,
@@ -27,12 +33,14 @@ const TugasNilaiSchema = new mongoose.Schema({
         max: 100,
         default: 0
     },
-    // Diserahkan oleh guru yang mana
     diberikanOleh: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     }
 }, { timestamps: true });
+
+// Membuat index untuk mencegah duplikasi nilai tugas untuk siswa yang sama
+TugasNilaiSchema.index({ siswa: 1, tugas: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('TugasNilai', TugasNilaiSchema);

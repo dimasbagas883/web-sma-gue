@@ -27,7 +27,7 @@ const UserSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['permission', 'pimpinan', 'akademik', 'guru', 'siswa'],
+        enum: ['permission', 'pimpinan', 'akademik', 'guru', 'siswa', 'tata_usaha'],
         default: 'siswa'
     },
     status: {

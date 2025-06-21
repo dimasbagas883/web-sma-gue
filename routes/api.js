@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 
 // --- Impor Middleware & Model ---
 const { protect, authorize } = require('../middleware/authmiddleware');
@@ -16,8 +17,12 @@ const Materi = require('../models/Materi');
 const Tugas = require('../models/Tugas');
 const PengumpulanTugas = require('../models/PengumpulanTugas');
 const Absensi = require('../models/Absensi');
+const Profile = require('../models/Profile');
+const JenisPembayaran = require('../models/JenisPembayaran');
+const Pembayaran = require('../models/Pembayaran');
+const Pengumuman = require('../models/Pengumuman'); // Pastikan ini ada
 
-// --- Konfigurasi Multer untuk File Upload (diletakkan di atas sebelum dipakai) ---
+// --- Konfigurasi Multer ---
 const materiStorage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads/'),
     filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
@@ -34,49 +39,62 @@ const tugasStorage = multer.diskStorage({
 });
 const uploadTugas = multer({ storage: tugasStorage });
 
+const profilStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, 'uploads/profil/'),
+    filename: (req, file, cb) => {
+        const userId = req.user._id;
+        cb(null, `${userId}${path.extname(file.originalname)}`);
+    }
+});
+const uploadFotoProfil = multer({ storage: profilStorage });
+
 
 // =================================================================
 // --- RUTE DASBOR & DATA KHUSUS ---
 // =================================================================
-
-// @desc    Siswa mendapatkan data lengkap untuk dasbornya
 router.get('/dashboard/siswa', protect, authorize('siswa'), async (req, res) => {
     try {
         const siswaId = req.user._id;
         const semuaNilai = await TugasNilai.find({ siswa: siswaId }).populate('mataPelajaran', 'namaMapel');
-        const ringkasan = { tugasBelumSelesai: 1, ujianMendatang: 3, persentaseKehadiran: 95 }; // Data dummy
+        const ringkasan = { tugasBelumSelesai: 1, ujianMendatang: 3, persentaseKehadiran: 95 };
         const nilaiPerMapel = {};
         semuaNilai.forEach(item => {
             if (item.mataPelajaran) {
                 const namaMapel = item.mataPelajaran.namaMapel;
-                if (!nilaiPerMapel[namaMapel]) {
-                    nilaiPerMapel[namaMapel] = { total: 0, count: 0 };
-                }
+                if (!nilaiPerMapel[namaMapel]) { nilaiPerMapel[namaMapel] = { total: 0, count: 0 }; }
                 nilaiPerMapel[namaMapel].total += item.nilai;
                 nilaiPerMapel[namaMapel].count += 1;
             }
         });
-        const performaNilai = {
-            labels: Object.keys(nilaiPerMapel),
-            data: Object.values(nilaiPerMapel).map(mapel => mapel.total / mapel.count)
-        };
+        const performaNilai = { labels: Object.keys(nilaiPerMapel), data: Object.values(nilaiPerMapel).map(mapel => mapel.total / mapel.count) };
         res.json({ ringkasan, performaNilai });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
-
-// @desc    Guru mendapatkan data ringkasan untuk dasbornya
 router.get('/dashboard/guru', protect, authorize('guru', 'permission'), async (req, res) => {
     try {
         const guruId = req.user._id;
-        const kelasIds = await Jadwal.find({ guru: guruId }).distinct('kelas');
-        const kelasData = await Kelas.find({ '_id': { $in: kelasIds } });
-        const totalSiswa = kelasData.reduce((sum, kelas) => sum + kelas.siswa.length, 0);
-        const ringkasan = { jumlahKelas: kelasIds.length, totalSiswa: totalSiswa, jadwalHariIni: 5 }; // Data dummy
+        const jadwalGuru = await Jadwal.find({ guru: guruId }).populate('kelas');
+        const kelasIds = new Set();
+        const siswaDihitung = new Set();
+        jadwalGuru.forEach(j => {
+            if(j.kelas) {
+                kelasIds.add(j.kelas._id.toString());
+                j.kelas.siswa.forEach(siswaId => {
+                    siswaDihitung.add(siswaId.toString());
+                });
+            }
+        });
+        const totalSiswa = siswaDihitung.size;
+        const namaHariIni = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
+        const jadwalHariIniCount = jadwalGuru.filter(j => j.hari === namaHariIni && j.kelas).length;
+        const ringkasan = { 
+            jumlahKelas: kelasIds.size, 
+            totalSiswa: totalSiswa, 
+            jadwalHariIni: jadwalHariIniCount 
+        };
         res.json({ ringkasan });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
-
-// @desc    Pimpinan mendapatkan data ringkasan untuk dasbornya
 router.get('/dashboard/pimpinan', protect, authorize('pimpinan', 'permission'), async (req, res) => {
     try {
         const totalGuru = await User.countDocuments({ role: 'guru' });
@@ -89,39 +107,74 @@ router.get('/dashboard/pimpinan', protect, authorize('pimpinan', 'permission'), 
 });
 
 // =================================================================
-// --- RUTE MANAJEMEN PENGGUNA ---
+// --- RUTE PROFIL PENGGUNA ---
 // =================================================================
+router.get('/profil/saya', protect, async (req, res) => {
+    try {
+        let profile = await Profile.findOne({ user: req.user._id });
+        if (!profile) { profile = await Profile.create({ user: req.user._id }); }
+        const user = await User.findById(req.user._id).select('name email');
+        const userProfile = { ...profile.toObject(), name: user.name, email: user.email };
+        res.json({ data: userProfile });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.put('/profil/saya', protect, async (req, res) => {
+    try {
+        const { name, nisn, alamat, noTelepon, namaOrangTua } = req.body;
+        const user = await User.findById(req.user._id);
+        user.name = name;
+        await user.save();
+        const profile = await Profile.findOneAndUpdate({ user: req.user._id }, { nisn, alamat, noTelepon, namaOrangTua }, { new: true, upsert: true });
+        res.json({ message: 'Profil berhasil diperbarui', data: profile });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.put('/users/ubah-password', protect, async (req, res) => {
+    try {
+        const { passwordLama, passwordBaru } = req.body;
+        const user = await User.findById(req.user._id);
+        const isMatch = await user.matchPassword(passwordLama);
+        if (!isMatch) return res.status(400).json({ message: 'Password lama salah.' });
+        user.password = passwordBaru;
+        await user.save();
+        res.json({ message: 'Password berhasil diubah.' });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.put('/profil/foto', protect, uploadFotoProfil.single('fotoProfil'), async (req, res) => {
+    try {
+        if (!req.file) { return res.status(400).json({ message: 'Tidak ada file yang diunggah.' }); }
+        const filePath = `/uploads/profil/${req.file.filename}`;
+        const profile = await Profile.findOneAndUpdate({ user: req.user._id }, { fotoProfil: filePath }, { new: true, upsert: true });
+        res.json({ message: 'Foto profil berhasil diperbarui.', data: profile });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
 
-// @desc    Admin membuat user baru (pimpinan, akademik)
+// =================================================================
+// --- RUTE MANAJEMEN (ADMIN) ---
+// =================================================================
 router.post('/users/create', protect, authorize('permission'), async (req, res) => {
     try {
         const { email, password, name, role } = req.body;
         if (!email || !password || !name || !role) return res.status(400).json({ message: 'Semua field wajib diisi' });
         if (await User.findOne({ email })) return res.status(400).json({ message: 'Email sudah digunakan' });
         const user = await User.create({ email, password, name, role, status: 'approved' });
+        await Profile.create({ user: user._id });
         const userResult = { _id: user._id, id: user._id, email: user.email, name: user.name, role: user.role, status: user.status };
         res.status(201).json({ message: `User ${role} berhasil dibuat`, data: userResult });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
-
-// @desc    Admin/Pimpinan melihat daftar semua user
 router.get('/users', protect, authorize('akademik', 'pimpinan', 'permission'), async (req, res) => {
     try {
         const users = await User.find({}).select('-password');
         res.json({ count: users.length, data: users });
     } catch (error) { res.status(500).json({ message: "Server Error" }); }
 });
-
-// @desc    Admin melihat daftar user yang statusnya 'pending'
 router.get('/users/pending', protect, authorize('akademik', 'permission'), async (req, res) => {
     try {
         const users = await User.find({ status: 'pending' }).select('-password');
         res.json({ data: users });
     } catch(error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
-
-// @desc    Admin mendapatkan semua user dengan peran tertentu (guru/siswa)
-router.get('/users/by-role/:role', protect, authorize('akademik', 'permission'), async (req, res) => {
+router.get('/users/by-role/:role', protect, authorize('akademik', 'tata_usaha', 'permission'), async (req, res) => {
     try {
         const validRoles = ['guru', 'siswa'];
         if (!validRoles.includes(req.params.role)) return res.status(400).json({ message: 'Peran tidak valid.' });
@@ -129,8 +182,6 @@ router.get('/users/by-role/:role', protect, authorize('akademik', 'permission'),
         res.json({ data: users });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
-
-// @desc    Admin mengupdate data seorang pengguna
 router.put('/users/:id', protect, authorize('permission'), async (req, res) => {
     try {
         const { name, role, status } = req.body;
@@ -145,8 +196,6 @@ router.put('/users/:id', protect, authorize('permission'), async (req, res) => {
         res.json({ message: 'User berhasil diperbarui', data: updatedUser });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
-
-// @desc    Admin menyetujui user yang mendaftar
 router.put('/users/approve/:id', protect, authorize('akademik', 'permission'), async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(req.params.id, { status: 'approved' }, { new: true });
@@ -154,8 +203,6 @@ router.put('/users/approve/:id', protect, authorize('akademik', 'permission'), a
         res.json({ message: `User ${user.name} telah disetujui.` });
     } catch (error) { res.status(500).json({ message: 'Server error' }); }
 });
-
-// @desc    Admin menghapus seorang pengguna
 router.delete('/users/:id', protect, authorize('permission'), async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
@@ -167,7 +214,7 @@ router.delete('/users/:id', protect, authorize('permission'), async (req, res) =
 });
 
 // =================================================================
-// ----------------- RUTE MANAJEMEN MATA PELAJARAN -----------------
+// --- RUTE MANAJEMEN MATA PELAJARAN ---
 // =================================================================
 router.post('/matapelajaran', protect, authorize('akademik', 'permission'), async (req, res) => {
     try {
@@ -177,7 +224,7 @@ router.post('/matapelajaran', protect, authorize('akademik', 'permission'), asyn
         res.status(201).json({ message: 'Mata Pelajaran berhasil dibuat', data: mataPelajaran });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
-router.get('/matapelajaran', protect, authorize('akademik', 'pimpinan', 'permission'), async (req, res) => {
+router.get('/matapelajaran', protect, authorize('akademik', 'pimpinan', 'permission', 'guru', 'tata_usaha'), async (req, res) => {
     try {
         const daftarMapel = await MataPelajaran.find().populate('pengajar', 'name');
         res.json({ data: daftarMapel });
@@ -200,7 +247,7 @@ router.delete('/matapelajaran/:id', protect, authorize('akademik', 'permission')
 });
 
 // =================================================================
-// --------------------- RUTE MANAJEMEN KELAS ----------------------
+// --- RUTE MANAJEMEN KELAS ---
 // =================================================================
 router.post('/kelas', protect, authorize('akademik', 'permission'), async (req, res) => {
     try {
@@ -247,7 +294,7 @@ router.delete('/kelas/:id', protect, authorize('akademik', 'permission'), async 
 });
 
 // =================================================================
-// ------------------- RUTE MANAJEMEN JADWAL ---------------------
+// --- RUTE MANAJEMEN JADWAL ---
 // =================================================================
 router.post('/jadwal', protect, authorize('akademik', 'permission'), async (req, res) => {
     try {
@@ -260,8 +307,8 @@ router.post('/jadwal', protect, authorize('akademik', 'permission'), async (req,
 router.get('/jadwal/by-kelas/:kelasId', protect, async (req, res) => {
     try {
         const jadwalKelas = await Jadwal.find({ kelas: req.params.kelasId })
-            .populate('mataPelajaran', '_id namaMapel') // PERBAIKAN KRITIS
-            .populate('guru', '_id name'); // PERBAIKAN KRITIS
+            .populate('mataPelajaran', '_id namaMapel')
+            .populate('guru', '_id name');
         res.json({ data: jadwalKelas });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
@@ -275,7 +322,8 @@ router.get('/jadwal/saya', protect, authorize('siswa'), async (req, res) => {
 });
 router.get('/jadwal/guru/saya', protect, authorize('guru', 'permission'), async (req, res) => {
     try {
-        const jadwalGuru = await Jadwal.find({ guru: req.user._id }).sort({ jamMulai: 'asc' }).populate('mataPelajaran', 'namaMapel').populate('kelas', 'namaKelas');
+        let jadwalGuru = await Jadwal.find({ guru: req.user._id }).sort({ jamMulai: 'asc' }).populate('mataPelajaran', 'namaMapel').populate('kelas', 'namaKelas');
+        jadwalGuru = jadwalGuru.filter(j => j.mataPelajaran && j.kelas);
         res.json({ data: jadwalGuru });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
@@ -288,7 +336,7 @@ router.delete('/jadwal/:id', protect, authorize('akademik', 'permission'), async
 });
 
 // =================================================================
-// ----------------- RUTE TUGAS, MATERI, NILAI, ABSENSI -------------------
+// --- RUTE TUGAS, MATERI, NILAI, ABSENSI ---
 // =================================================================
 router.post('/materi/upload', protect, authorize('guru', 'permission'), uploadMateri.single('fileMateri'), async (req, res) => {
     try {
@@ -322,10 +370,11 @@ router.get('/tugas/by-kelas/:kelasId', protect, authorize('siswa', 'guru', 'perm
 });
 router.get('/tugas/guru/saya', protect, authorize('guru', 'permission'), async (req, res) => {
     try {
-        const daftarTugas = await Tugas.find({ diberikanOleh: req.user._id })
+        let daftarTugas = await Tugas.find({ diberikanOleh: req.user._id })
             .populate('kelas', '_id namaKelas')
             .populate('mataPelajaran', '_id namaMapel')
             .sort({ createdAt: -1 });
+        daftarTugas = daftarTugas.filter(t => t.kelas && t.mataPelajaran);
         res.json({ data: daftarTugas });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
@@ -375,6 +424,81 @@ router.post('/absensi', protect, authorize('guru', 'permission'), async (req, re
         res.status(200).json({ message: 'Absensi berhasil disimpan.' });
     } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
 });
+router.get('/absensi/saya', protect, authorize('siswa'), async (req, res) => {
+    try {
+        const daftarAbsensi = await Absensi.find({ siswa: req.user._id }).populate('mataPelajaran', 'namaMapel').sort({ tanggal: -1 });
+        res.json({ data: daftarAbsensi });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+
+// =================================================================
+// --- RUTE TATA USAHA ---
+// =================================================================
+router.post('/jenis-pembayaran', protect, authorize('tata_usaha', 'permission'), async (req, res) => {
+    try {
+        const { nama, deskripsi, jumlah } = req.body;
+        const jenisPembayaran = await JenisPembayaran.create({ nama, deskripsi, jumlah });
+        res.status(201).json({ message: 'Jenis Pembayaran berhasil dibuat', data: jenisPembayaran });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.get('/jenis-pembayaran', protect, authorize('tata_usaha', 'permission'), async (req, res) => {
+    try {
+        const daftarJenis = await JenisPembayaran.find().sort({ createdAt: -1 });
+        res.json({ data: daftarJenis });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.delete('/jenis-pembayaran/:id', protect, authorize('tata_usaha', 'permission'), async (req, res) => {
+    try {
+        const jenis = await JenisPembayaran.findByIdAndDelete(req.params.id);
+        if (!jenis) return res.status(404).json({ message: 'Jenis pembayaran tidak ditemukan' });
+        res.json({ message: 'Jenis pembayaran berhasil dihapus' });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.post('/pembayaran', protect, authorize('tata_usaha', 'permission'), async (req, res) => {
+    try {
+        const { siswa, jenisPembayaran, jumlahBayar, status, keterangan } = req.body;
+        const pembayaran = await Pembayaran.create({ siswa, jenisPembayaran, jumlahBayar, status, keterangan, dicatatOleh: req.user._id });
+        res.status(201).json({ message: 'Pembayaran berhasil dicatat', data: pembayaran });
+    } catch (error) {
+        if (error.code === 11000) { return res.status(400).json({ message: 'Siswa ini sudah lunas untuk jenis pembayaran ini.' }); }
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+});
+router.get('/pembayaran', protect, authorize('tata_usaha', 'pimpinan', 'permission'), async (req, res) => {
+    try {
+        const riwayat = await Pembayaran.find({})
+            .populate('siswa', 'name')
+            .populate('jenisPembayaran', 'nama jumlah')
+            .populate('dicatatOleh', 'name')
+            .sort({ tanggalBayar: -1 });
+        res.json({ data: riwayat });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+
+// =================================================================
+// --- RUTE PENGUMUMAN ---
+// =================================================================
+router.post('/pengumuman', protect, authorize('akademik', 'permission'), async (req, res) => {
+    try {
+        const { judul, isi, ditujukanUntuk } = req.body;
+        const pengumuman = await Pengumuman.create({ judul, isi, ditujukanUntuk, dibuatOleh: req.user._id });
+        res.status(201).json({ message: 'Pengumuman berhasil dibuat', data: pengumuman });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.get('/pengumuman', protect, async (req, res) => {
+    try {
+        const pengumuman = await Pengumuman.find({ $or: [ { ditujukanUntuk: 'semua' }, { ditujukanUntuk: req.user.role } ] }).populate('dibuatOleh', 'name').sort({ createdAt: -1 });
+        res.json({ data: pengumuman });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+router.delete('/pengumuman/:id', protect, authorize('akademik', 'permission'), async (req, res) => {
+    try {
+        const pengumuman = await Pengumuman.findByIdAndDelete(req.params.id);
+        if (!pengumuman) return res.status(404).json({ message: 'Pengumuman tidak ditemukan' });
+        res.json({ message: 'Pengumuman berhasil dihapus.' });
+    } catch (error) { res.status(500).json({ message: 'Server Error', error: error.message }); }
+});
+
 
 // --- Ekspor Router (WAJIB PALING BAWAH) ---
 module.exports = router;

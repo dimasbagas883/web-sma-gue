@@ -6,37 +6,89 @@
     <title>Dasbor Guru - EduPortal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        }
         #app-shell { display: none; }
-        .nav-link.active { background-color: #eef2ff; color: #4f46e5; font-weight: 600; }
-        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; border-radius: 0.25rem; }
+        .sidebar {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        .sidebar:hover {
+            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.2);
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+        }
+        .nav-link.active, .nav-link:hover {
+            background: linear-gradient(to right, #4f46e5, #7c3aed);
+            color: white;
+            border-radius: 0.5rem;
+        }
+        .btn-primary {
+            background: linear-gradient(to right, #4f46e5, #7c3aed);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+        }
+        .input-field, select, textarea {
+            transition: all 0.3s ease;
+        }
+        .input-field:focus, select:focus, textarea:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
     </style>
 </head>
-<body class="bg-gray-50">
-    <div id="app-shell" class="hidden h-screen bg-gray-100">
+<body class="min-h-screen">
+    <div id="app-shell" class="hidden flex h-screen">
         <!-- Sidebar -->
-        <div id="sidebar" class="w-64 bg-white shadow-lg flex-shrink-0 flex flex-col">
-            <div class="p-6 border-b"><h1 class="text-2xl font-bold text-indigo-600">EduPortal</h1></div>
-            <div class="p-4 border-b"><div id="user-profile-info"></div></div>
+        <div id="sidebar" class="sidebar w-64 bg-white shadow-lg flex-shrink-0 flex flex-col">
+            <div class="p-6 border-b flex items-center space-x-3">
+                <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/>
+                </svg>
+                <h1 class="text-2xl font-bold text-indigo-600">EduPortal</h1>
+            </div>
+            <div class="p-4 border-b flex items-center space-x-3">
+                <div id="user-profile-info" class="flex items-center space-x-3"></div>
+            </div>
             <nav id="nav-container" class="p-4 space-y-2 flex-grow"></nav>
-            <div class="p-4 border-t"><button id="logout-btn" class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i>Logout</button></div>
+            <div class="p-4 border-t">
+                <button id="logout-btn" class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg">
+                    <i data-lucide="log-out" class="w-5 h-5 mr-3"></i>Logout
+                </button>
+            </div>
         </div>
-        <!-- Konten Utama -->
+        <!-- Main Content -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <header class="flex justify-between items-center p-4 bg-white border-b"><h2 id="page-title" class="text-xl font-semibold text-gray-800">Dasbor</h2></header>
+            <header class="flex justify-between items-center p-4 bg-white border-b shadow-sm">
+                <h2 id="page-title" class="text-xl font-semibold text-gray-800"></h2>
+            </header>
             <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto p-6"></main>
         </div>
     </div>
+    <div id="modal-container"></div>
 
 <script>
     const API_URL = 'http://localhost:5000';
     const ui = {};
     let appState = {};
 
-    // =================================================================
-    // ----------- RENDER FUNCTIONS (Membuat Tampilan) -----------
-    // =================================================================
+    // Render Functions
     const render = {
         page: (title, handler) => {
             ui.pageTitle.textContent = title;
@@ -44,87 +96,329 @@
             handler(document.getElementById('content-wrapper'));
         },
         guruDashboard: async (container) => {
-            container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><div class="p-6 rounded-lg border"><p class="text-sm text-gray-500">Jumlah Kelas Diajar</p><p id="summary-kelas" class="text-3xl font-bold">...</p></div><div class="p-6 rounded-lg border"><p class="text-sm text-gray-500">Total Siswa</p><p id="summary-siswa" class="text-3xl font-bold">...</p></div><div class="p-6 rounded-lg border"><p class="text-sm text-gray-500">Jadwal Hari Ini</p><p id="summary-jadwal-hari-ini" class="text-3xl font-bold">...</p></div></div><div><h3 class="font-semibold mb-4">Aktivitas Terbaru</h3><p>Area ini bisa diisi dengan notifikasi atau pengumuman penting untuk guru.</p></div>`;
+            container.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="card bg-white p-6 rounded-lg border-l-4 border-indigo-500 shadow-sm">
+                        <div class="flex items-center">
+                            <i data-lucide="users" class="w-8 h-8 text-indigo-500 mr-4"></i>
+                            <div>
+                                <p class="text-sm text-gray-500">Jumlah Kelas Diajar</p>
+                                <p id="summary-kelas" class="text-2xl font-bold">...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card bg-white p-6 rounded-lg border-l-4 border-green-500 shadow-sm">
+                        <div class="flex items-center">
+                            <i data-lucide="user" class="w-8 h-8 text-green-500 mr-4"></i>
+                            <div>
+                                <p class="text-sm text-gray-500">Total Siswa</p>
+                                <p id="summary-siswa" class="text-2xl font-bold">...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card bg-white p-6 rounded-lg border-l-4 border-amber-500 shadow-sm">
+                        <div class="flex items-center">
+                            <i data-lucide="clock" class="w-8 h-8 text-amber-500 mr-4"></i>
+                            <div>
+                                <p class="text-sm text-gray-500">Jadwal Hari Ini</p>
+                                <p id="summary-jadwal-hari-ini" class="text-2xl font-bold">...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="jadwal-hari-ini-container">
+                    <h3 class="font-semibold text-lg mb-4">Jadwal Mengajar Hari Ini</h3>
+                    <div id="jadwal-hari-ini-list">Memuat jadwal...</div>
+                </div>`;
+            lucide.createIcons();
             const result = await apiRequest('/api/dashboard/guru');
             if (result) {
                 document.getElementById('summary-kelas').textContent = result.ringkasan.jumlahKelas;
                 document.getElementById('summary-siswa').textContent = result.ringkasan.totalSiswa;
                 document.getElementById('summary-jadwal-hari-ini').textContent = result.ringkasan.jadwalHariIni;
             }
+            handle.fetchJadwalHariIni();
         },
         jadwalPelajaran: async (container) => {
             container.innerHTML = 'Memuat jadwal...';
             const result = await apiRequest('/api/jadwal/guru/saya');
             if (!result || !result.data) { container.innerHTML = 'Gagal memuat jadwal.'; return; }
             let content = '';
-            const jadwalByHari = result.data.reduce((acc, curr) => { (acc[curr.hari] = acc[curr.hari] || []).push(curr); return acc; }, {});
+            const jadwalByHari = result.data.reduce((acc, curr) => { 
+                (acc[curr.hari] = acc[curr.hari] || []).push(curr); 
+                return acc; 
+            }, {});
             ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'].forEach(hari => {
                 if (jadwalByHari[hari] && jadwalByHari[hari].length > 0) {
                     content += `<h4 class="font-bold text-lg mb-2 mt-4">${hari}</h4>`;
-                    jadwalByHari[hari].sort((a,b) => a.jamMulai.localeCompare(b.jamMulai)).forEach(j => {
-                        content += `<div class="p-3 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-lg mb-2"><p class="font-semibold">${j.jamMulai} - ${j.jamSelesai}: ${j.mataPelajaran.namaMapel}</p><p class="text-sm text-gray-600">Kelas: ${j.kelas.namaKelas}</p></div>`;
+                    jadwalByHari[hari].sort((a, b) => a.jamMulai.localeCompare(b.jamMulai)).forEach(j => {
+                        content += `
+                            <div class="card p-3 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-lg mb-2">
+                                <p class="font-semibold">${j.jamMulai} - ${j.jamSelesai}: ${j.mataPelajaran.namaMapel}</p>
+                                <p class="text-sm text-gray-600">Kelas: ${j.kelas.namaKelas}</p>
+                            </div>`;
                     });
                 }
             });
-            container.innerHTML = content || '<p>Tidak ada jadwal mengajar ditemukan.</p>';
+            container.innerHTML = content || '<p class="text-gray-500">Tidak ada jadwal mengajar ditemukan.</p>';
         },
         inputNilai: async (container) => {
             container.innerHTML = 'Memuat kelas...';
             const result = await apiRequest('/api/kelas/guru/saya');
-            if (!result || !result.data || result.data.length === 0) { container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar di kelas manapun.</p>'; return; }
+            if (!result || !result.data || result.data.length === 0) { 
+                container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar di kelas manapun.</p>'; 
+                return; 
+            }
             appState.kelasDiajar = result.data;
             const kelasOptions = result.data.map(k => `<option value="${k._id}">${k.namaKelas}</option>`).join('');
-            container.innerHTML = `<div class="space-y-4"><div><label class="text-sm font-medium">1. Pilih Kelas</label><select id="nilai-kelas-selector" class="w-full p-2 border rounded mt-1"><option value="">-- Pilih Kelas --</option>${kelasOptions}</select></div><div id="nilai-mapel-selector-container"></div><div id="nilai-siswa-list-container" class="mt-4"></div></div>`;
-            document.getElementById('nilai-kelas-selector').addEventListener('change', (e) => { document.getElementById('nilai-siswa-list-container').innerHTML = ''; render.mapelSelector(e.target.value, 'nilai-mapel-selector-container', '2. Pilih Mata Pelajaran', (kelasId, mapelId) => render.nilaiSiswaList(kelasId, mapelId)); });
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium">1. Pilih Kelas</label>
+                        <select id="nilai-kelas-selector" class="input-field w-full p-2 border rounded mt-1">
+                            <option value="">-- Pilih Kelas --</option>${kelasOptions}
+                        </select>
+                    </div>
+                    <div id="nilai-mapel-selector-container"></div>
+                    <div id="nilai-siswa-list-container" class="mt-4"></div>
+                </div>`;
+            document.getElementById('nilai-kelas-selector').addEventListener('change', (e) => { 
+                document.getElementById('nilai-siswa-list-container').innerHTML = ''; 
+                render.mapelSelector(e.target.value, 'nilai-mapel-selector-container', '2. Pilih Mata Pelajaran', (kelasId, mapelId) => render.nilaiSiswaList(kelasId, mapelId)); 
+            });
         },
         materiPelajaran: async (container) => {
             container.innerHTML = 'Memuat kelas...';
             const kelasResult = await apiRequest('/api/kelas/guru/saya');
-            if (!kelasResult || !kelasResult.data || kelasResult.data.length === 0) { container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar di kelas manapun.</p>'; return; }
+            if (!kelasResult || !kelasResult.data || kelasResult.data.length === 0) { 
+                container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar di kelas manapun.</p>'; 
+                return; 
+            }
             appState.kelasDiajar = kelasResult.data;
             const kelasOptions = kelasResult.data.map(k => `<option value="${k._id}">${k.namaKelas}</option>`).join('');
-            container.innerHTML = `<h3 class="font-semibold mb-4">Unggah Materi Baru</h3><form id="form-materi" class="p-4 border rounded-lg bg-gray-50 space-y-4"><div><label class="text-sm font-medium">Judul Materi</label><input type="text" name="judul" class="w-full p-2 border rounded mt-1" required></div><div><label class="text-sm font-medium">Deskripsi</label><textarea name="deskripsi" class="w-full p-2 border rounded mt-1"></textarea></div><div><label class="text-sm font-medium">Untuk Kelas</label><select name="kelas" class="w-full p-2 border rounded mt-1" required><option value="">Pilih Kelas</option>${kelasOptions}</select></div><div id="materi-mapel-selector-container"></div><div><label class="text-sm font-medium">File Materi (PDF, DOCX, PPTX)</label><input type="file" name="fileMateri" class="w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100" required></div><div><button type="submit" class="w-full bg-blue-600 text-white p-2 rounded-lg font-semibold">Unggah Materi</button></div></form>`;
+            container.innerHTML = `
+                <h3 class="font-semibold text-lg mb-4">Unggah Materi Baru</h3>
+                <form id="form-materi" class="p-6 border rounded-lg bg-gray-50 space-y-4 card">
+                    <div>
+                        <label class="text-sm font-medium">Judul Materi</label>
+                        <input type="text" name="judul" class="input-field w-full p-2 border rounded mt-1" required>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Deskripsi</label>
+                        <textarea name="deskripsi" class="input-field w-full p-2 border rounded mt-1"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Untuk Kelas</label>
+                        <select name="kelas" class="input-field w-full p-2 border rounded mt-1" required>
+                            <option value="">Pilih Kelas</option>${kelasOptions}
+                        </select>
+                    </div>
+                    <div id="materi-mapel-selector-container"></div>
+                    <div>
+                        <label class="text-sm font-medium">File Materi (PDF, DOCX, PPTX)</label>
+                        <input type="file" name="fileMateri" class="input-field w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100" required>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-primary w-full text-white p-2 rounded-lg font-semibold">Unggah Materi</button>
+                    </div>
+                </form>`;
             container.querySelector('select[name="kelas"]').addEventListener('change', (e) => render.mapelSelector(e.target.value, 'materi-mapel-selector-container', 'Mata Pelajaran'));
             document.getElementById('form-materi').addEventListener('submit', handle.materiSubmit);
         },
         absensi: async (container) => {
             container.innerHTML = 'Memuat data...';
             const kelasResult = await apiRequest('/api/kelas/guru/saya');
-            if (!kelasResult || !kelasResult.data || kelasResult.data.length === 0) { container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar.</p>'; return; }
+            if (!kelasResult || !kelasResult.data || kelasResult.data.length === 0) { 
+                container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar.</p>'; 
+                return; 
+            }
             appState.kelasDiajar = kelasResult.data;
             const kelasOptions = kelasResult.data.map(k => `<option value="${k._id}">${k.namaKelas}</option>`).join('');
-            container.innerHTML = `<div class="space-y-4"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label class="text-sm font-medium">1. Pilih Kelas</label><select id="absensi-kelas-selector" class="w-full p-2 border rounded mt-1"><option value="">Pilih Kelas</option>${kelasOptions}</select></div><div id="absensi-mapel-selector-container"></div><div><label class="text-sm font-medium">3. Pilih Tanggal</label><input type="date" id="absensi-tanggal-selector" class="w-full p-2 border rounded mt-1" value="${new Date().toISOString().substring(0, 10)}"></div></div><div id="absensi-siswa-list-container" class="mt-4"></div></div>`;
-            document.getElementById('absensi-kelas-selector').addEventListener('change', (e) => { document.getElementById('absensi-siswa-list-container').innerHTML = ''; render.mapelSelector(e.target.value, 'absensi-mapel-selector-container', '2. Pilih Mapel', render.absensiSiswaList); });
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="text-sm font-medium">1. Pilih Kelas</label>
+                            <select id="absensi-kelas-selector" class="input-field w-full p-2 border rounded mt-1">
+                                <option value="">Pilih Kelas</option>${kelasOptions}
+                            </select>
+                        </div>
+                        <div id="absensi-mapel-selector-container"></div>
+                        <div>
+                            <label class="text-sm font-medium">3. Pilih Tanggal</label>
+                            <input type="date" id="absensi-tanggal-selector" class="input-field w-full p-2 border rounded mt-1" value="${new Date().toISOString().substring(0, 10)}">
+                        </div>
+                    </div>
+                    <div id="absensi-siswa-list-container" class="mt-4"></div>
+                </div>`;
+            document.getElementById('absensi-kelas-selector').addEventListener('change', (e) => { 
+                document.getElementById('absensi-siswa-list-container').innerHTML = ''; 
+                render.mapelSelector(e.target.value, 'absensi-mapel-selector-container', '2. Pilih Mapel', render.absensiSiswaList); 
+            });
         },
         buatTugas: async (container) => {
             container.innerHTML = 'Memuat kelas...';
             const kelasResult = await apiRequest('/api/kelas/guru/saya');
-            if (!kelasResult || !kelasResult.data || kelasResult.data.length === 0) { container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar.</p>'; return; }
+            if (!kelasResult || !kelasResult.data || kelasResult.data.length === 0) { 
+                container.innerHTML = '<p class="text-red-500">Anda belum ditugaskan untuk mengajar.</p>'; 
+                return; 
+            }
             appState.kelasDiajar = kelasResult.data;
             const kelasOptions = kelasResult.data.map(k => `<option value="${k._id}">${k.namaKelas}</option>`).join('');
-            container.innerHTML = `<h3 class="font-semibold mb-4">Buat Tugas Baru</h3><form id="form-tugas" class="p-4 border rounded-lg bg-gray-50 space-y-4"><div><label class="text-sm font-medium">Judul Tugas</label><input type="text" name="judul" class="w-full p-2 border rounded mt-1" required></div><div><label class="text-sm font-medium">Deskripsi / Instruksi</label><textarea name="deskripsi" class="w-full p-2 border rounded mt-1"></textarea></div><div><label class="text-sm font-medium">Untuk Kelas</label><select name="kelas" class="w-full p-2 border rounded mt-1" required><option value="">Pilih Kelas</option>${kelasOptions}</select></div><div id="tugas-mapel-selector-container"></div><div><label class="text-sm font-medium">Deadline Pengumpulan</label><input type="date" name="deadline" class="w-full p-2 border rounded mt-1"></div><div><button type="submit" class="w-full bg-blue-600 text-white p-2 rounded-lg font-semibold">Buat Tugas</button></div></form>`;
+            container.innerHTML = `
+                <h3 class="font-semibold text-lg mb-4">Buat Tugas Baru</h3>
+                <form id="form-tugas" class="p-6 border rounded-lg bg-gray-50 space-y-4 card">
+                    <div>
+                        <label class="text-sm font-medium">Judul Tugas</label>
+                        <input type="text" name="judul" class="input-field w-full p-2 border rounded mt-1" required>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Deskripsi / Instruksi</label>
+                        <textarea name="deskripsi" class="input-field w-full p-2 border rounded mt-1"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Untuk Kelas</label>
+                        <select name="kelas" class="input-field w-full p-2 border rounded mt-1" required>
+                            <option value="">Pilih Kelas</option>${kelasOptions}
+                        </select>
+                    </div>
+                    <div id="tugas-mapel-selector-container"></div>
+                    <div>
+                        <label class="text-sm font-medium">Deadline</label>
+                        <input type="date" name="deadline" class="input-field w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-primary w-full text-white p-2 rounded-lg font-semibold">Buat Tugas</button>
+                    </div>
+                </form>`;
             container.querySelector('select[name="kelas"]').addEventListener('change', (e) => render.mapelSelector(e.target.value, 'tugas-mapel-selector-container', 'Mata Pelajaran'));
             document.getElementById('form-tugas').addEventListener('submit', handle.tugasSubmit);
         },
         periksaTugas: async (container) => {
             container.innerHTML = 'Memuat daftar tugas...';
             const result = await apiRequest('/api/tugas/guru/saya');
-            if (!result || !result.data || result.data.length === 0) { container.innerHTML = '<p>Anda belum membuat tugas apapun.</p>'; return; }
-            let content = `<h3 class="font-semibold mb-4">Pilih Tugas untuk Diperiksa</h3>`;
+            if (!result || !result.data || result.data.length === 0) { 
+                container.innerHTML = '<p class="text-gray-500">Anda belum membuat tugas apapun.</p>'; 
+                return; 
+            }
+            let content = `<h3 class="font-semibold text-lg mb-4">Pilih Tugas untuk Diperiksa</h3>`;
             result.data.forEach(tugas => {
-                content += `<div class="p-4 border rounded-lg mb-3 hover:bg-gray-50 cursor-pointer" onclick="handle.pilihTugas('${tugas._id}', '${tugas.mataPelajaran._id}')">
-                                <p class="font-bold">${tugas.judul}</p>
-                                <p class="text-sm text-gray-600">${tugas.mataPelajaran.namaMapel} - Kelas ${tugas.kelas.namaKelas}</p>
-                            </div>`;
+                content += `
+                    <div class="card p-4 border rounded-lg mb-3 hover:bg-gray-50 cursor-pointer" onclick="handle.pilihTugas('${tugas._id}', '${tugas.mataPelajaran._id}')">
+                        <p class="font-bold">${tugas.judul}</p>
+                        <p class="text-sm text-gray-600">${tugas.mataPelajaran.namaMapel} - Kelas ${tugas.kelas.namaKelas}</p>
+                    </div>`;
             });
             content += `<div id="pengumpulan-tugas-container" class="mt-6"></div>`;
             container.innerHTML = content;
         },
+        profilPengguna: async (container) => {
+            container.innerHTML = 'Memuat profil...';
+            const result = await apiRequest('/api/profil/saya');
+            if (!result || !result.data) { 
+                container.innerHTML = 'Gagal memuat profil.'; 
+                return; 
+            }
+            const profile = result.data;
+            const fotoUrl = profile.fotoProfil ? `${API_URL}${profile.fotoProfil}` : `https://placehold.co/150x150/e0e0e0/757575?text=${profile.name.charAt(0)}`;
+            container.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-1 text-center">
+                        <img id="foto-profil-preview" src="${fotoUrl}" alt="Foto Profil" class="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-white shadow-lg">
+                        <form id="form-foto-profil">
+                            <label for="input-foto" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-semibold py-2 px-4 rounded-lg">Ganti Foto</label>
+                            <input type="file" id="input-foto" name="fotoProfil" class="hidden" accept="image/png, image/jpeg">
+                        </form>
+                        <p class="text-xs text-gray-500 mt-2">Pilih file JPG atau PNG.</p>
+                    </div>
+                    <div class="md:col-span-2 space-y-6">
+                        <div>
+                            <h3 class="font-semibold text-lg mb-4">Informasi Pribadi</h3>
+                            <form id="form-profil" class="space-y-4 p-6 border rounded-lg bg-gray-50 card">
+                                <div>
+                                    <label class="text-sm font-medium">Nama Lengkap</label>
+                                    <input type="text" id="profil-nama" class="input-field w-full p-2 border rounded mt-1" value="${profile.name || ''}">
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Email</label>
+                                    <input type="email" class="input-field w-full p-2 border rounded mt-1 bg-gray-200" value="${profile.email || ''}" readonly>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Alamat</label>
+                                    <textarea id="profil-alamat" class="input-field w-full p-2 border rounded mt-1">${profile.alamat || ''}</textarea>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">No. Telepon</label>
+                                    <input type="tel" id="profil-telepon" class="input-field w-full p-2 border rounded mt-1" value="${profile.noTelepon || ''}">
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn-primary w-full text-white p-2 rounded-lg font-semibold">Simpan Perubahan</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-lg mb-4">Ubah Password</h3>
+                            <form id="form-password" class="space-y-4 p-6 border rounded-lg bg-gray-50 card">
+                                <div>
+                                    <label class="text-sm font-medium">Password Saat Ini</label>
+                                    <input type="password" id="password-lama" class="input-field w-full p-2 border rounded mt-1" required>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Password Baru</label>
+                                    <input type="password" id="password-baru" class="input-field w-full p-2 border rounded mt-1" required>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-medium">Konfirmasi Password Baru</label>
+                                    <input type="password" id="password-konfirmasi" class="input-field w-full p-2 border rounded mt-1" required>
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn-primary w-full text-white p-2 rounded-lg font-semibold">Ubah Password</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('form-profil').addEventListener('submit', handle.updateProfil);
+            document.getElementById('form-password').addEventListener('submit', handle.ubahPassword);
+            document.getElementById('input-foto').addEventListener('change', handle.uploadFotoProfil);
+        },
+        lihatPengumuman: async (container) => {
+            container.innerHTML = 'Memuat pengumuman...';
+            const result = await apiRequest('/api/pengumuman');
+            if (!result || !result.data) { 
+                container.innerHTML = '<p class="text-red-500">Gagal memuat data.</p>'; 
+                return; 
+            }
+            if (result.data.length === 0) { 
+                container.innerHTML = `
+                    <div class="text-center py-10">
+                        <i data-lucide="inbox" class="w-16 h-16 mx-auto text-gray-400"></i>
+                        <p class="mt-4 text-gray-500">Tidak ada pengumuman untuk Anda saat ini.</p>
+                    </div>`; 
+                lucide.createIcons(); 
+                return; 
+            }
+            let listHTML = '<div class="space-y-4">';
+            result.data.forEach(p => {
+                listHTML += `
+                    <div class="card p-4 border rounded-lg bg-gray-50">
+                        <p class="font-bold text-lg">${p.judul}</p>
+                        <p class="text-xs text-gray-500 mb-2">Oleh: ${p.dibuatOleh.name} | ${new Date(p.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        <p class="text-gray-700 whitespace-pre-wrap">${p.isi}</p>
+                    </div>`;
+            });
+            listHTML += '</div>';
+            container.innerHTML = listHTML;
+        },
         mapelSelector: async (kelasId, containerId, label, onChangeCallback) => {
             const container = document.getElementById(containerId);
-            container.innerHTML = ''; if (!kelasId) return;
+            container.innerHTML = ''; 
+            if (!kelasId) return;
             const jadwalResult = await apiRequest(`/api/jadwal/by-kelas/${kelasId}`);
-            if(!jadwalResult || !jadwalResult.data) { container.innerHTML = '<p class="text-red-500 text-sm">Gagal memuat jadwal.</p>'; return; }
+            if (!jadwalResult || !jadwalResult.data) { 
+                container.innerHTML = '<p class="text-red-500 text-sm">Gagal memuat jadwal.</p>'; 
+                return; 
+            }
             const user = JSON.parse(localStorage.getItem('user'));
             const userId = user ? user.id : null;
             const mapelDiKelas = [];
@@ -139,31 +433,75 @@
             });
             const mapelOptions = mapelDiKelas.map(m => `<option value="${m._id}">${m.namaMapel}</option>`).join('');
             const selectName = (containerId === 'materi-mapel-selector-container' || containerId === 'tugas-mapel-selector-container') ? 'mataPelajaran' : 'mapel-selector';
-            container.innerHTML = `<div><label class="text-sm font-medium">${label}</label><select name="${selectName}" class="w-full p-2 border rounded mt-1" required><option value="">-- Pilih Mapel --</option>${mapelOptions}</select></div>`;
+            container.innerHTML = `
+                <div>
+                    <label class="text-sm font-medium">${label}</label>
+                    <select name="${selectName}" class="input-field w-full p-2 border rounded mt-1" required>
+                        <option value="">-- Pilih Mapel --</option>${mapelOptions}
+                    </select>
+                </div>`;
             if (onChangeCallback) {
                 container.querySelector('select').addEventListener('change', (e) => onChangeCallback(kelasId, e.target.value));
             }
         },
         nilaiSiswaList: (kelasId, mapelId) => {
             const container = document.getElementById('nilai-siswa-list-container');
-            if (!kelasId || !mapelId) { container.innerHTML = ''; return; }
-            const kelasData = appState.kelasDiajar.find(k => k._id === kelasId); if (!kelasData) return;
+            if (!kelasId || !mapelId) { 
+                container.innerHTML = ''; 
+                return; 
+            }
+            const kelasData = appState.kelasDiajar.find(k => k._id === kelasId); 
+            if (!kelasData) return;
             let siswaHtml = '<h3 class="font-semibold mt-4 text-sm font-medium">3. Input Nilai Siswa</h3>';
-            if(kelasData.siswa.length === 0) { siswaHtml += '<p class="text-gray-500 mt-2">Belum ada siswa di kelas ini.</p>'; }
-            else { kelasData.siswa.forEach(siswa => { siswaHtml += `<div class="p-3 border rounded-lg my-2 flex items-center justify-between"><span>${siswa.name}</span><form class="flex items-center space-x-2" onsubmit="handle.nilaiSubmit(event, '${siswa._id}', '${mapelId}')"><select class="p-1 border rounded text-sm" required><option value="TUGAS">Tugas</option><option value="UTS">UTS</option><option value="UAS">UAS</option></select><input type="number" min="0" max="100" class="p-1 border rounded w-20" placeholder="Nilai" required><button type="submit" class="bg-green-500 text-white btn-sm">Simpan</button></form></div>`; }); }
+            if (kelasData.siswa.length === 0) { 
+                siswaHtml += '<p class="text-gray-500 mt-2">Belum ada siswa di kelas ini.</p>'; 
+            } else {
+                kelasData.siswa.forEach(siswa => {
+                    siswaHtml += `
+                        <div class="card p-3 border rounded-lg my-2 flex items-center justify-between">
+                            <span>${siswa.name}</span>
+                            <form class="flex items-center space-x-2" onsubmit="handle.nilaiSubmit(event, '${siswa._id}', '${mapelId}')">
+                                <select class="input-field p-1 border rounded text-sm" required>
+                                    <option value="TUGAS">Tugas</option>
+                                    <option value="UTS">UTS</option>
+                                    <option value="UAS">UAS</option>
+                                </select>
+                                <input type="number" min="0" max="100" class="input-field p-1 border rounded w-20" placeholder="Nilai" required>
+                                <button type="submit" class="btn-primary bg-green-500 text-white btn-sm">Simpan</button>
+                            </form>
+                        </div>`;
+                });
+            }
             container.innerHTML = siswaHtml;
         },
         absensiSiswaList: () => {
             const kelasId = document.getElementById('absensi-kelas-selector').value;
             const mapelId = document.getElementById('absensi-mapel-selector-container')?.querySelector('select')?.value;
             const container = document.getElementById('absensi-siswa-list-container');
-            if (!kelasId || !mapelId) { container.innerHTML = ''; return; }
-            const kelasData = appState.kelasDiajar.find(k => k._id === kelasId); if (!kelasData) return;
+            if (!kelasId || !mapelId) { 
+                container.innerHTML = ''; 
+                return; 
+            }
+            const kelasData = appState.kelasDiajar.find(k => k._id === kelasId); 
+            if (!kelasData) return;
             let siswaHtml = `<form id="form-absensi"><h3 class="font-semibold mt-4 text-sm font-medium">4. Catat Kehadiran Siswa</h3>`;
-            if(kelasData.siswa.length === 0) { siswaHtml += '<p class="text-gray-500 mt-2">Belum ada siswa di kelas ini.</p>'; }
-            else {
-                kelasData.siswa.forEach(siswa => { siswaHtml += `<div class="p-3 border rounded-lg my-2 flex items-center justify-between"><span>${siswa.name}</span><div class="flex space-x-2">${['Hadir', 'Sakit', 'Izin', 'Alpa'].map(status => `<label class="flex items-center space-x-1"><input type="radio" name="${siswa._id}" value="${status}" required class="form-radio">${status}</label>`).join('')}</div></div>`; });
-                siswaHtml += `<button type="submit" class="w-full mt-4 bg-green-600 text-white p-2 rounded-lg font-semibold">Simpan Absensi</button>`;
+            if (kelasData.siswa.length === 0) { 
+                siswaHtml += '<p class="text-gray-500 mt-2">Belum ada siswa di kelas ini.</p>'; 
+            } else {
+                kelasData.siswa.forEach(siswa => {
+                    siswaHtml += `
+                        <div class="card p-3 border rounded-lg my-2 flex items-center justify-between">
+                            <span>${siswa.name}</span>
+                            <div class="flex space-x-2">
+                                ${['Hadir', 'Sakit', 'Izin', 'Alpa'].map(status => `
+                                    <label class="flex items-center space-x-1">
+                                        <input type="radio" name="${siswa._id}" value="${status}" required class="form-radio">
+                                        <span>${status}</span>
+                                    </label>`).join('')}
+                            </div>
+                        </div>`;
+                });
+                siswaHtml += `<button type="submit" class="btn-primary w-full mt-4 bg-green-600 text-white p-2 rounded-lg font-semibold">Simpan Absensi</button>`;
             }
             siswaHtml += '</form>';
             container.innerHTML = siswaHtml;
@@ -172,53 +510,143 @@
         daftarPengumpulan: async (container, tugasId, mapelId) => {
             container.innerHTML = 'Memuat daftar pengumpulan...';
             const result = await apiRequest(`/api/pengumpulan/by-tugas/${tugasId}`);
-            if (!result || !result.data) { container.innerHTML = '<p>Gagal memuat data.</p>'; return; }
-            let tableHTML = `<h4 class="font-bold text-lg mb-2 mt-4">Siswa yang Mengumpulkan</h4><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="bg-gray-100"><tr><th class="p-2">Nama Siswa</th><th class="p-2">File</th><th class="p-2">Nilai</th><th class="p-2">Aksi</th></tr></thead><tbody>`;
-            if (result.data.length === 0) { tableHTML += `<tr><td colspan="4" class="p-3 text-center text-gray-500">Belum ada siswa yang mengumpulkan tugas ini.</td></tr>`; }
-            else {
+            if (!result || !result.data) { 
+                container.innerHTML = '<p class="text-red-500">Gagal memuat data.</p>'; 
+                return; 
+            }
+            let tableHTML = `
+                <h4 class="font-bold text-lg mb-2 mt-4">Siswa yang Mengumpulkan</h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2">Nama Siswa</th>
+                                <th class="p-2">File</th>
+                                <th class="p-2">Nilai</th>
+                                <th class="p-2">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+            if (result.data.length === 0) { 
+                tableHTML += `<tr><td colspan="4" class="p-3 text-center text-gray-500">Belum ada siswa yang mengumpulkan tugas ini.</td></tr>`; 
+            } else {
                 result.data.forEach(p => {
-                    tableHTML += `<tr class="border-b"><td class="p-2 font-medium">${p.siswa.name}</td><td class="p-2"><a href="${API_URL}${p.pathFile}" target="_blank" class="text-indigo-600 hover:underline">Lihat File</a></td><td class="p-2">${p.nilai || 'Belum dinilai'}</td><td class="p-2"><form class="flex items-center space-x-2" onsubmit="handle.submitNilaiTugas(event, '${p._id}', '${p.siswa._id}', '${mapelId}')"><input type="number" min="0" max="100" class="p-1 border rounded w-20" placeholder="Nilai" required value="${p.nilai || ''}"><button type="submit" class="bg-green-500 text-white btn-sm">Beri Nilai</button></form></td></tr>`;
+                    tableHTML += `
+                        <tr class="border-b">
+                            <td class="p-2 font-medium">${p.siswa.name}</td>
+                            <td class="p-2"><a href="${API_URL}${p.pathFile}" target="_blank" class="text-indigo-600 hover:underline">Lihat File</a></td>
+                            <td class="p-2">${p.nilai || 'Belum dinilai'}</td>
+                            <td class="p-2">
+                                <form class="flex items-center space-x-2" onsubmit="handle.submitNilaiTugas(event, '${p._id}', '${p.siswa._id}', '${mapelId}')">
+                                    <input type="number" min="0" max="100" class="input-field p-1 border rounded w-20" placeholder="Nilai" required value="${p.nilai || ''}">
+                                    <button type="submit" class="btn-primary bg-green-500 text-white btn-sm">Beri Nilai</button>
+                                </form>
+                            </td>
+                        </tr>`;
                 });
             }
             tableHTML += '</tbody></table></div>';
             container.innerHTML = tableHTML;
         }
     };
+
+    // Handle Functions
     const handle = {
+        fetchJadwalHariIni: async () => {
+            const listContainer = document.getElementById('jadwal-hari-ini-list');
+            const result = await apiRequest('/api/jadwal/guru/saya');
+            if (!result || !result.data) { 
+                listContainer.innerHTML = 'Gagal memuat jadwal.'; 
+                return; 
+            }
+            const namaHariIni = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
+            const jadwalHariIni = result.data.filter(j => j.hari === namaHariIni);
+            if (jadwalHariIni.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-6">
+                        <i data-lucide="coffee" class="w-12 h-12 mx-auto text-gray-400"></i>
+                        <p class="mt-4 text-gray-500">Tidak ada jadwal mengajar hari ini. Selamat beristirahat!</p>
+                    </div>`;
+                lucide.createIcons();
+                return;
+            }
+            let content = '<div class="space-y-3">';
+            jadwalHariIni.sort((a, b) => a.jamMulai.localeCompare(b.jamMulai)).forEach(j => {
+                content += `
+                    <div class="card p-3 border-l-4 border-indigo-500 bg-indigo-50 rounded-r-lg">
+                        <p class="font-semibold">${j.jamMulai} - ${j.jamSelesai}: ${j.mataPelajaran.namaMapel}</p>
+                        <p class="text-sm text-gray-600">Kelas: ${j.kelas.namaKelas}</p>
+                    </div>`;
+            });
+            content += '</div>';
+            listContainer.innerHTML = content;
+        },
         nilaiSubmit: async (event, siswaId, mapelId) => {
-            event.preventDefault(); const form = event.target;
-            const body = { siswa: siswaId, mataPelajaran: mapelId, jenis: form.querySelector('select').value, nilai: form.querySelector('input').value };
+            event.preventDefault();
+            const form = event.target;
+            const body = { 
+                siswa: siswaId, 
+                mataPelajaran: mapelId, 
+                jenis: form.querySelector('select').value, 
+                nilai: form.querySelector('input').value 
+            };
             await apiRequest('/api/penilaian', 'POST', body);
-            form.querySelector('input').value = ''; alert('Nilai berhasil disimpan!');
+            form.querySelector('input').value = '';
+            alert('Nilai berhasil disimpan!');
         },
         materiSubmit: async (e) => {
-            e.preventDefault(); const form = e.target;
+            e.preventDefault();
+            const form = e.target;
             const formData = new FormData(form);
             const result = await apiRequest('/api/materi/upload', 'POST', formData);
-            if(result) { alert('Materi berhasil diunggah!'); form.reset(); document.getElementById('materi-mapel-selector-container').innerHTML = ''; }
+            if (result) { 
+                alert('Materi berhasil diunggah!'); 
+                form.reset(); 
+                document.getElementById('materi-mapel-selector-container').innerHTML = ''; 
+            }
         },
         absensiSubmit: async (e) => {
-            e.preventDefault(); const form = e.target;
+            e.preventDefault();
+            const form = e.target;
             const absensi = [];
-            form.querySelectorAll('input[type="radio"]:checked').forEach(input => { absensi.push({ siswa: input.name, status: input.value }); });
+            form.querySelectorAll('input[type="radio"]:checked').forEach(input => { 
+                absensi.push({ siswa: input.name, status: input.value }); 
+            });
             const body = {
                 kelas: document.getElementById('absensi-kelas-selector').value,
                 mataPelajaran: document.getElementById('absensi-mapel-selector-container').querySelector('select').value,
                 tanggal: document.getElementById('absensi-tanggal-selector').value,
                 absensi: absensi
             };
-            if(!body.mataPelajaran) { alert('Silakan pilih mata pelajaran terlebih dahulu.'); return; }
-            if(body.absensi.length === 0) { alert('Silakan isi absensi terlebih dahulu.'); return; }
+            if (!body.mataPelajaran) { 
+                alert('Silakan pilih mata pelajaran terlebih dahulu.'); 
+                return; 
+            }
+            if (body.absensi.length === 0) { 
+                alert('Silakan isi absensi terlebih dahulu.'); 
+                return; 
+            }
             await apiRequest('/api/absensi', 'POST', body);
             alert('Absensi berhasil disimpan!');
         },
         tugasSubmit: async (e) => {
-            e.preventDefault(); const form = e.target;
-            const body = { judul: form.judul.value, deskripsi: form.deskripsi.value, kelas: form.kelas.value, mataPelajaran: form.querySelector('select[name="mataPelajaran"]').value, deadline: form.deadline.value };
-            if (!body.mataPelajaran) { alert('Silakan pilih mata pelajaran.'); return; }
+            e.preventDefault();
+            const form = e.target;
+            const body = { 
+                judul: form.judul.value, 
+                deskripsi: form.deskripsi.value, 
+                kelas: form.kelas.value, 
+                mataPelajaran: form.querySelector('select[name="mataPelajaran"]').value, 
+                deadline: form.deadline.value 
+            };
+            if (!body.mataPelajaran) { 
+                alert('Silakan pilih mata pelajaran.'); 
+                return; 
+            }
             await apiRequest('/api/tugas', 'POST', body);
             alert('Tugas berhasil dibuat!');
-            form.reset(); document.getElementById('tugas-mapel-selector-container').innerHTML = '';
+            form.reset();
+            document.getElementById('tugas-mapel-selector-container').innerHTML = '';
         },
         pilihTugas: (tugasId, mapelId) => {
             const container = document.getElementById('pengumpulan-tugas-container');
@@ -233,32 +661,119 @@
                 alert('Nilai berhasil disimpan!');
                 handle.pilihTugas(result.data.tugas, mapelId);
             }
+        },
+        updateProfil: async (event) => {
+            event.preventDefault();
+            const body = { 
+                name: document.getElementById('profil-nama').value, 
+                alamat: document.getElementById('profil-alamat').value, 
+                noTelepon: document.getElementById('profil-telepon').value 
+            };
+            const result = await apiRequest('/api/profil/saya', 'PUT', body);
+            if (result) {
+                alert('Profil berhasil diperbarui!');
+                const user = JSON.parse(localStorage.getItem('user'));
+                user.name = body.name;
+                localStorage.setItem('user', JSON.stringify(user));
+                renderLayout(user);
+            }
+        },
+        ubahPassword: async (event) => {
+            event.preventDefault();
+            const passwordLama = document.getElementById('password-lama').value;
+            const passwordBaru = document.getElementById('password-baru').value;
+            const passwordKonfirmasi = document.getElementById('password-konfirmasi').value;
+            if (passwordBaru !== passwordKonfirmasi) {
+                alert('Password baru dan konfirmasi password tidak cocok.');
+                return;
+            }
+            if (passwordBaru.length < 6) { 
+                alert('Password baru minimal harus 6 karakter.'); 
+                return; 
+            }
+            const result = await apiRequest('/api/users/ubah-password', 'PUT', { passwordLama, passwordBaru });
+            if (result) { 
+                alert('Password berhasil diubah! Anda akan diarahkan ke halaman login.'); 
+                logout(); 
+            }
+        },
+        uploadFotoProfil: async (event) => {
+            const file = event.target.files[0]; 
+            if (!file) return;
+            const formData = new FormData(); 
+            formData.append('fotoProfil', file);
+            const result = await apiRequest('/api/profil/foto', 'PUT', formData);
+            if (result && result.data) {
+                alert('Foto profil berhasil diperbarui!');
+                const newFotoUrl = `${API_URL}${result.data.fotoProfil}?t=${new Date().getTime()}`;
+                document.getElementById('foto-profil-preview').src = newFotoUrl;
+                document.querySelector('#user-profile-info img').src = newFotoUrl;
+            }
         }
     };
+
+    // API Request Function
     async function apiRequest(endpoint, method = 'GET', body = null) {
-        const token = localStorage.getItem('token'); if (!token) { logout(); return; }
+        const token = localStorage.getItem('token'); 
+        if (!token) { 
+            logout(); 
+            return; 
+        }
         const options = { method, headers: {} };
         if (body) {
-            if (body instanceof FormData) { options.headers['Authorization'] = `Bearer ${token}`; options.body = body; }
-            else { options.headers['Content-Type'] = 'application/json'; options.headers['Authorization'] = `Bearer ${token}`; options.body = JSON.stringify(body); }
-        } else { options.headers['Authorization'] = `Bearer ${token}`; }
+            if (body instanceof FormData) { 
+                options.headers['Authorization'] = `Bearer ${token}`; 
+                options.body = body; 
+            } else { 
+                options.headers['Content-Type'] = 'application/json'; 
+                options.headers['Authorization'] = `Bearer ${token}`; 
+                options.body = JSON.stringify(body); 
+            }
+        } else { 
+            options.headers['Authorization'] = `Bearer ${token}`; 
+        }
         try {
             const response = await fetch(`${API_URL}${endpoint}`, options);
-            if(response.status === 401) { logout(); return; }
+            if (response.status === 401) { 
+                logout(); 
+                return; 
+            }
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Terjadi kesalahan');
             return data;
-        } catch (error) { console.error("API Error:", error); alert(error.message); }
+        } catch (error) { 
+            console.error("API Error:", error); 
+            alert(error.message); 
+        }
     }
-    function setupUI() { const ids = ['app-shell','logout-btn','sidebar','user-profile-info','nav-container','main-content','page-title']; ids.forEach(id => { ui[id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase())] = document.getElementById(id); }); }
-    function showDashboard() {
+
+    // Setup and Initialization
+    function setupUI() { 
+        const ids = ['app-shell', 'logout-btn', 'sidebar', 'user-profile-info', 'nav-container', 'main-content', 'page-title']; 
+        ids.forEach(id => { 
+            ui[id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase())] = document.getElementById(id); 
+        }); 
+    }
+
+    async function showDashboard() {
         const user = JSON.parse(localStorage.getItem('user'));
-        if (!user || user.role !== 'guru') { logout(); return; }
+        if (!user || user.role !== 'guru') { 
+            logout(); 
+            return; 
+        }
         ui.appShell.style.display = 'flex';
-        renderLayout(user);
+        await renderLayout(user);
     }
-    function renderLayout(user) {
-        ui.userProfileInfo.innerHTML = `<div class="w-10 h-10 bg-indigo-200 rounded-full flex items-center justify-center font-bold text-indigo-700">${user.name.charAt(0)}</div><div><p class="font-semibold">${user.name}</p><p class="text-sm text-gray-500">${user.role}</p></div>`;
+
+    async function renderLayout(user) {
+        const profileResult = await apiRequest('/api/profil/saya');
+        const fotoUrl = profileResult && profileResult.data.fotoProfil ? `${API_URL}${profileResult.data.fotoProfil}` : `https://placehold.co/150x150/e0e0e0/757575?text=${user.name.charAt(0)}`;
+        ui.userProfileInfo.innerHTML = `
+            <img src="${fotoUrl}" alt="Foto Profil" class="w-10 h-10 rounded-full object-cover">
+            <div>
+                <p class="font-semibold">${user.name}</p>
+                <p class="text-sm text-gray-500">Guru</p>
+            </div>`;
         const navItems = [
             { text: 'Dashboard', icon: 'layout-dashboard', handler: () => render.page('Dashboard', render.guruDashboard) },
             { text: 'Jadwal Mengajar', icon: 'calendar', handler: () => render.page('Jadwal Mengajar', render.jadwalPelajaran) },
@@ -267,24 +782,40 @@
             { text: 'Periksa Tugas', icon: 'check-square', handler: () => render.page('Periksa Tugas', render.periksaTugas) },
             { text: 'Materi Pelajaran', icon: 'upload-cloud', handler: () => render.page('Unggah Materi', render.materiPelajaran) },
             { text: 'Absensi', icon: 'user-check', handler: () => render.page('Catat Absensi', render.absensi) },
+            { text: 'Profil Saya', icon: 'user-circle', handler: () => render.page('Pengaturan Profil', render.profilPengguna) },
+            { text: 'Lihat Pengumuman', icon: 'newspaper', handler: () => render.page('Lihat Pengumuman', render.lihatPengumuman) }
         ];
         ui.navContainer.innerHTML = '';
         navItems.forEach((item, index) => {
-            const link = document.createElement('a'); link.href = '#';
-            link.className = 'nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg';
+            const link = document.createElement('a');
+            link.href = '#';
+            link.className = 'nav-link flex items-center px-4 py-3 text-gray-700 rounded-lg';
             if (index === 0) link.classList.add('active');
             link.innerHTML = `<i data-lucide="${item.icon}" class="w-5 h-5 mr-3"></i><span>${item.text}</span>`;
-            link.onclick = (e) => { e.preventDefault(); document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); link.classList.add('active'); item.handler(); };
+            link.onclick = (e) => { 
+                e.preventDefault(); 
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); 
+                link.classList.add('active'); 
+                item.handler(); 
+            };
             ui.navContainer.appendChild(link);
         });
         lucide.createIcons();
         if (navItems.length > 0) navItems[0].handler();
     }
-    const logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
+
+    const logout = () => { 
+        localStorage.clear(); 
+        window.location.href = 'login.html'; 
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
         setupUI();
         const token = localStorage.getItem('token');
-        if (!token) { window.location.href = 'login.html'; return; }
+        if (!token) { 
+            window.location.href = 'login.html'; 
+            return; 
+        }
         showDashboard();
         ui.logoutBtn.addEventListener('click', logout);
     });
