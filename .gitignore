@@ -14,4 +14,10 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-/uploads
+# Abaikan semua yang ada di dalam folder uploads...
+/uploads/*
+
+# KECUALI file .gitkeep ini, agar folder tetap ada di GitHub
+!/uploads/.gitkeep
+!/uploads/profil/.gitkeep
+!/uploads/tugas/.gitkeep
