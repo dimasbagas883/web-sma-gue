@@ -2,16 +2,16 @@ const mongoose = require('mongoose');
 
 const PembayaranSchema = new mongoose.Schema({
     // Siswa yang melakukan pembayaran
-    siswa: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User', 
-        required: true 
+    siswa: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     // Jenis tagihan yang dibayar
-    jenisPembayaran: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'JenisPembayaran', 
-        required: true 
+    jenisPembayaran: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'JenisPembayaran',
+        required: true
     },
     jumlahBayar: {
         type: Number,
@@ -27,10 +27,10 @@ const PembayaranSchema = new mongoose.Schema({
         required: true
     },
     // Dicatat oleh siapa
-    dicatatOleh: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User', 
-        required: true 
+    dicatatOleh: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     keterangan: {
         type: String,
@@ -41,3 +41,5 @@ const PembayaranSchema = new mongoose.Schema({
 // Mencegah satu siswa membayar jenis tagihan yang sama lebih dari sekali (jika sudah lunas)
 // Logika ini bisa disempurnakan lebih lanjut
 PembayaranSchema.index({ siswa: 1, jenisPembayaran: 1 }, { unique: true });
+
+module.exports = mongoose.model('Pembayaran', PembayaranSchema);

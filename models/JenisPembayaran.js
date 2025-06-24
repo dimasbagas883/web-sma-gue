@@ -1,3 +1,4 @@
+// File baru: models/JenisPembayaran.js
 const mongoose = require('mongoose');
 
 const JenisPembayaranSchema = new mongoose.Schema({

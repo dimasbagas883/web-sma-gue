@@ -5,25 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dasbor Pimpinan - EduPortal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- PUSTAKA (LIBRARY) UNTUK EKSPOR PDF DAN EXCEL -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
         #app-shell { display: none; }
+        .nav-link { transition: all 0.2s ease-in-out; }
         .nav-link.active { background-color: #eef2ff; color: #4f46e5; font-weight: 600; }
+        .kpi-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        @media print {
+            body * { visibility: hidden; }
+            #laporan-akademik-table, #laporan-akademik-table * { visibility: visible; }
+            #laporan-akademik-table { position: absolute; left: 0; top: 0; }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
-    <div id="app-shell" class="hidden h-screen bg-gray-100">
+    <div id="app-shell" class="hidden h-screen">
         <!-- Sidebar -->
         <div id="sidebar" class="w-64 bg-white shadow-lg flex-shrink-0 flex flex-col">
-            <div class="p-6 border-b"><h1 class="text-2xl font-bold text-indigo-600">EduPortal</h1></div>
-            <div class="p-4 border-b"><div id="user-profile-info"></div></div>
-            <nav id="nav-container" class="p-4 space-y-2 flex-grow"></nav>
-            <div class="p-4 border-t"><button id="logout-btn" class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i>Logout</button></div>
+            <div class="p-6 border-b flex items-center gap-3"><i data-lucide="graduation-cap" class="w-8 h-8 text-indigo-600"></i><h1 class="text-2xl font-bold text-indigo-600">EduPortal</h1></div>
+            <div class="p-4 border-b"><div id="user-profile-info" class="flex items-center space-x-3"></div></div>
+            <nav id="nav-container" class="p-4 space-y-1 flex-grow"></nav>
+            <div class="p-4 border-t"><button id="logout-btn" class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i>Logout</button></div>
         </div>
         <!-- Konten Utama -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <header class="flex justify-between items-center p-4 bg-white border-b"><h2 id="page-title" class="text-xl font-semibold text-gray-800">Dasbor</h2></header>
+            <header class="flex justify-between items-center p-4 bg-white border-b"><h2 id="page-title" class="text-xl font-semibold text-gray-800"></h2></header>
             <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto p-6"></main>
         </div>
     </div>
@@ -31,65 +56,131 @@
 <script>
     const API_URL = 'http://localhost:5000';
     const ui = {};
+    let activeCharts = [];
 
-    // =================================================================
-    // ----------- RENDER FUNCTIONS (Membuat Tampilan) -----------
-    // =================================================================
+    function formatRupiah(angka) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0); }
+    function destroyActiveCharts() { activeCharts.forEach(chart => chart.destroy()); activeCharts = []; }
+
     const render = {
         page: (title, handler) => {
             ui.pageTitle.textContent = title;
-            ui.mainContent.innerHTML = `<div id="content-wrapper" class="bg-white p-6 rounded-xl shadow-md min-h-full"></div>`;
+            destroyActiveCharts();
+            ui.mainContent.innerHTML = `<div id="content-wrapper" class="space-y-6"></div>`;
             handler(document.getElementById('content-wrapper'));
         },
+
         pimpinanDashboard: async (container) => {
-            container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-white p-6 rounded-lg border"><p class="text-sm text-gray-500">Total Guru</p><p id="summary-guru" class="text-3xl font-bold">...</p></div>
-                <div class="bg-white p-6 rounded-lg border"><p class="text-sm text-gray-500">Total Siswa</p><p id="summary-siswa" class="text-3xl font-bold">...</p></div>
-                <div class="bg-white p-6 rounded-lg border"><p class="text-sm text-gray-500">Rata-rata Nilai Sekolah</p><p id="summary-nilai" class="text-3xl font-bold">...</p></div>
-            </div>`;
-            const result = await apiRequest('/api/dashboard/pimpinan');
-            if (result && result.ringkasan) {
-                document.getElementById('summary-guru').textContent = result.ringkasan.jumlahGuru;
-                document.getElementById('summary-siswa').textContent = result.ringkasan.jumlahSiswa;
-                document.getElementById('summary-nilai').textContent = result.ringkasan.rataRataNilaiSekolah;
+            container.innerHTML = `<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"> ${Array(5).fill('<div class="kpi-card animate-pulse"><div class="h-6 bg-gray-200 rounded w-3/4 mb-2"></div><div class="h-8 bg-gray-300 rounded w-1/2"></div></div>').join('')}</div><div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6"><div class="lg:col-span-3 card p-6 animate-pulse"><div class="h-64 bg-gray-200 rounded"></div></div><div class="lg:col-span-2 card p-6 animate-pulse"><div class="h-64 bg-gray-200 rounded"></div></div></div><div class="card p-6 animate-pulse mt-6"><div class="h-64 bg-gray-200 rounded"></div></div>`;
+            
+            const [analyticsResult, trendResult] = await Promise.all([
+                apiRequest('/api/dashboard/pimpinan-analytics'),
+                apiRequest('/api/laporan/tren-keuangan')
+            ]);
+
+            if (!analyticsResult || !analyticsResult.data) { container.innerHTML = `<div class="p-6 bg-red-100 text-red-700 rounded-lg">Gagal memuat data analitik.</div>`; return; }
+
+            const { kpi, grafik } = analyticsResult.data;
+            container.innerHTML = `<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5"><div class="kpi-card"><p class="text-sm text-gray-500">Total Siswa</p><p class="text-3xl font-bold">${kpi.totalSiswa}</p></div><div class="kpi-card"><p class="text-sm text-gray-500">Total Guru</p><p class="text-3xl font-bold">${kpi.totalGuru}</p></div><div class="kpi-card"><p class="text-sm text-gray-500">Kehadiran Hari Ini</p><p class="text-3xl font-bold">${kpi.rataRataKehadiran}%</p></div><div class="kpi-card"><p class="text-sm text-gray-500">Total Tunggakan</p><p class="text-3xl font-bold">${formatRupiah(kpi.totalTunggakan)}</p></div><div class="kpi-card"><p class="text-sm text-gray-500">Pendaftar Baru</p><p class="text-3xl font-bold">${kpi.pendaftarBaru}</p></div></div><div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6"><div class="lg:col-span-3 card p-6"><h3 class="font-semibold mb-4">Rata-Rata Nilai per Kelas (Diagram Batang)</h3><div class="h-72"><canvas id="nilaiPerKelasChart"></canvas></div></div><div class="lg:col-span-2 card p-6"><h3 class="font-semibold mb-4">Distribusi Tunggakan (Diagram Pie)</h3><div class="h-72"><canvas id="tunggakanChart"></canvas></div></div></div><div class="card p-6 mt-6"><h3 class="font-semibold mb-4">Tren Pemasukan 6 Bulan Terakhir (Diagram Garis)</h3><div class="h-72"><canvas id="trenKeuanganChart"></canvas></div></div>`;
+            
+            if (grafik.nilaiPerKelas.length > 0) {
+                activeCharts.push(new Chart(document.getElementById('nilaiPerKelasChart'), { type: 'bar', data: { labels: grafik.nilaiPerKelas.map(k => k.namaKelas), datasets: [{ label: 'Rata-rata Nilai', data: grafik.nilaiPerKelas.map(k => k.rataRata), backgroundColor: 'rgba(79, 70, 229, 0.8)', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } } }));
+            }
+            if (grafik.distribusiTunggakan.length > 0) {
+                activeCharts.push(new Chart(document.getElementById('tunggakanChart'), { type: 'doughnut', data: { labels: grafik.distribusiTunggakan.map(t => t.nama), datasets: [{ label: 'Tunggakan', data: grafik.distribusiTunggakan.map(t => t.tunggakan), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } }));
+            }
+            if (trendResult && trendResult.data && trendResult.data.length > 0) {
+                activeCharts.push(new Chart(document.getElementById('trenKeuanganChart'), { type: 'line', data: { labels: trendResult.data.map(t => t.label), datasets: [{ label: 'Pemasukan', data: trendResult.data.map(t => t.total), borderColor: 'rgba(22, 163, 74, 1)', backgroundColor: 'rgba(22, 163, 74, 0.1)', fill: true, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } }));
             }
         },
-        daftarPengguna: async (container, role) => {
-            container.innerHTML = `Memuat data ${role}...`;
-            const result = await apiRequest('/api/users');
-            if (!result || !result.data) { container.innerHTML = 'Gagal memuat data.'; return; }
-            const filteredUsers = result.data.filter(user => user.role === role);
-            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="bg-gray-100"><tr><th class="p-3">Nama</th><th class="p-3">Email</th><th class="p-3">Status</th></tr></thead><tbody>`;
-            if (filteredUsers.length > 0) {
-                filteredUsers.forEach(user => {
-                    tableHTML += `<tr class="border-b"><td class="p-3 font-medium">${user.name}</td><td class="p-3">${user.email}</td><td class="p-3">${user.status}</td></tr>`;
+
+        laporanAkademik: async (container) => {
+            container.innerHTML = `<div class="card p-6"><div class="flex justify-between items-center mb-4"><div><h3 class="text-lg font-semibold">Laporan Performa Akademik Kelas</h3><p class="text-sm text-gray-500">Ringkasan kinerja nilai dan kehadiran untuk setiap kelas.</p></div><div class="flex space-x-2"><button id="export-pdf-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 flex items-center gap-2"><i data-lucide="file-text"></i>PDF</button><button id="export-excel-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 flex items-center gap-2"><i data-lucide="file-spreadsheet"></i>Excel</button></div></div><div id="laporan-content"></div></div>`;
+            lucide.createIcons();
+            const reportContent = document.getElementById('laporan-content');
+            reportContent.innerHTML = `<div class="text-center py-8"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div><p class="mt-4 text-gray-500">Memuat laporan...</p></div>`;
+            
+            const result = await apiRequest('/api/laporan/performa-akademik');
+            if (!result || !result.data) { reportContent.innerHTML = `<div class="p-4 bg-red-100 text-red-700 rounded-lg">Gagal memuat laporan.</div>`; return; }
+
+            const data = result.data;
+            const getNilaiColor = (n) => n >= 85 ? 'text-green-700 bg-green-100' : (n >= 70 ? 'text-yellow-700 bg-yellow-100' : 'text-red-700 bg-red-100');
+            const getKehadiranColor = (p) => p >= 95 ? 'text-green-700 bg-green-100' : (p >= 85 ? 'text-yellow-700 bg-yellow-100' : 'text-red-700 bg-red-100');
+
+            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left" id="laporan-akademik-table"><thead class="bg-gray-100"><tr><th class="p-4 font-semibold">Nama Kelas</th><th class="p-4 font-semibold">Wali Kelas</th><th class="p-4 font-semibold text-center">Jumlah Siswa</th><th class="p-4 font-semibold text-center">Rata-rata Nilai</th><th class="p-4 font-semibold text-center">Tingkat Kehadiran</th></tr></thead><tbody class="divide-y divide-gray-200">`;
+            if (data.length > 0) {
+                data.forEach(kelas => {
+                    tableHTML += `<tr class="hover:bg-gray-50">
+                        <td class="p-4 font-bold text-indigo-700">${kelas.namaKelas}</td>
+                        <td class="p-4">${kelas.waliKelas}</td>
+                        <td class="p-4 text-center">${kelas.jumlahSiswa}</td>
+                        <td class="p-4 text-center"><span class="font-bold px-3 py-1 rounded-full ${getNilaiColor(kelas.rataRataNilai)}">${kelas.rataRataNilai}</span></td>
+                        <td class="p-4 text-center"><span class="font-bold px-3 py-1 rounded-full ${getKehadiranColor(kelas.tingkatKehadiran)}">${kelas.tingkatKehadiran}%</span></td>
+                    </tr>`;
                 });
             } else {
-                tableHTML += `<tr><td colspan="3" class="p-3 text-center text-gray-500">Tidak ada data ${role}.</td></tr>`;
+                tableHTML += `<tr><td colspan="5" class="p-6 text-center text-gray-500">Tidak ada data akademik untuk ditampilkan.</td></tr>`;
+            }
+            tableHTML += '</tbody></table></div>';
+            reportContent.innerHTML = tableHTML;
+            
+            document.getElementById('export-pdf-btn').addEventListener('click', () => handle.exportToPDF());
+            document.getElementById('export-excel-btn').addEventListener('click', () => handle.exportToExcel());
+        },
+
+        daftarPengguna: async (container, role) => {
+            container.innerHTML = `<div class="card p-4">Memuat data ${role}...</div>`;
+            const result = await apiRequest('/api/users');
+            if (!result || !result.data) { container.innerHTML = '<div class="card p-4">Gagal memuat data.</div>'; return; }
+            const filteredUsers = result.data.filter(user => user.role === role);
+            let tableHTML = `<div class="overflow-x-auto card"><table class="w-full text-sm text-left"><thead class="bg-gray-100"><tr><th class="p-4">Nama</th><th class="p-4">Email</th><th class="p-4">Status</th></tr></thead><tbody class="divide-y divide-gray-200">`;
+            if (filteredUsers.length > 0) {
+                filteredUsers.forEach(user => {
+                    tableHTML += `<tr><td class="p-4 font-medium">${user.name}</td><td class="p-4">${user.email}</td><td class="p-4">${user.status}</td></tr>`;
+                });
+            } else {
+                tableHTML += `<tr><td colspan="3" class="p-4 text-center text-gray-500">Tidak ada data ${role}.</td></tr>`;
             }
             tableHTML += '</tbody></table></div>';
             container.innerHTML = tableHTML;
         },
+
         daftarKelas: async (container) => {
-            container.innerHTML = 'Memuat data kelas...';
+            container.innerHTML = '<div class="card p-4">Memuat data kelas...</div>';
             const result = await apiRequest('/api/kelas');
-            if (!result || !result.data) { container.innerHTML = 'Gagal memuat data.'; return; }
-            let content = '';
+            if (!result || !result.data) { container.innerHTML = '<div class="card p-4">Gagal memuat data.</div>'; return; }
+            let content = '<div class="space-y-4">';
             result.data.forEach(kelas => {
                 const siswaList = kelas.siswa.map(s => s.name).join(', ') || 'Belum ada siswa';
-                content += `<div class="p-4 border rounded-lg mb-3">
+                content += `<div class="p-4 border rounded-lg bg-white">
                     <p class="font-semibold text-lg">${kelas.namaKelas}</p>
                     <p class="text-sm text-gray-600 mb-2">Wali Kelas: ${kelas.waliKelas ? kelas.waliKelas.name : 'N/A'}</p>
                     <div class="mt-2 pt-2 border-t text-sm"><p class="font-medium">Siswa:</p><p class="text-gray-700">${siswaList}</p></div>
                 </div>`;
             });
-            container.innerHTML = content || '<p>Belum ada kelas yang dibuat.</p>';
+            content += '</div>';
+            container.innerHTML = content || '<p class="card p-4">Belum ada kelas yang dibuat.</p>';
         },
     };
 
-    // =================================================================
-    // --------------- INISIALISASI & LOGIKA UTAMA ------------------
-    // =================================================================
+    const handle = {
+        exportToPDF: () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const table = document.getElementById('laporan-akademik-table');
+            if (!table) { alert('Tabel laporan tidak ditemukan!'); return; }
+            
+            doc.text("Laporan Performa Akademik", 14, 15);
+            doc.autoTable({ html: '#laporan-akademik-table', startY: 20 });
+            doc.save('laporan-akademik.pdf');
+        },
+        exportToExcel: () => {
+            const table = document.getElementById('laporan-akademik-table');
+            if (!table) { alert('Tabel laporan tidak ditemukan!'); return; }
+            const wb = XLSX.utils.table_to_book(table, {sheet: "Laporan Akademik"});
+            XLSX.writeFile(wb, "laporan-akademik.xlsx");
+        }
+    };
+
     async function apiRequest(endpoint, method = 'GET', body = null) {
         const token = localStorage.getItem('token'); if (!token) { logout(); return; }
         const options = { method, headers: { 'Authorization': `Bearer ${token}` } };
@@ -97,10 +188,16 @@
         try {
             const response = await fetch(`${API_URL}${endpoint}`, options);
             if(response.status === 401) { logout(); return; }
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.message);
-            return data;
-        } catch (error) { console.error("API Error:", error); }
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Terjadi kesalahan pada server');
+            }
+            return await response.json();
+        } catch (error) { 
+            console.error("API Error:", error);
+            alert(`Error: ${error.message}`);
+            return null;
+        }
     }
     
     function setupUI() {
@@ -108,17 +205,11 @@
         ids.forEach(id => { ui[id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase())] = document.getElementById(id); });
     }
     
-    function showDashboard() {
-        const user = JSON.parse(localStorage.getItem('user'));
-        if (!user || user.role !== 'pimpinan') { logout(); return; }
-        ui.appShell.style.display = 'flex';
-        renderLayout(user);
-    }
-
     function renderLayout(user) {
-        ui.userProfileInfo.innerHTML = `<div class="w-10 h-10 bg-indigo-200 rounded-full flex items-center justify-center font-bold text-indigo-700">${user.name.charAt(0)}</div><div><p class="font-semibold">${user.name}</p><p class="text-sm text-gray-500">${user.role}</p></div>`;
+        ui.userProfileInfo.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 bg-indigo-200 rounded-full flex items-center justify-center font-bold text-indigo-700">${user.name.charAt(0)}</div><div><p class="font-semibold">${user.name}</p><p class="text-sm text-gray-500">${user.role}</p></div></div>`;
         const navItems = [
-            { text: 'Dashboard', icon: 'layout-dashboard', handler: () => render.page('Dashboard', render.pimpinanDashboard) },
+            { text: 'Dashboard', icon: 'layout-dashboard', handler: () => render.page('Dashboard Analitik', render.pimpinanDashboard) },
+            { text: 'Laporan Akademik', icon: 'bar-chart-3', handler: () => render.page('Laporan Performa Akademik', render.laporanAkademik) },
             { text: 'Daftar Guru', icon: 'user-square', handler: () => render.page('Daftar Guru', c => render.daftarPengguna(c, 'guru')) },
             { text: 'Daftar Siswa', icon: 'users', handler: () => render.page('Daftar Siswa', c => render.daftarPengguna(c, 'siswa')) },
             { text: 'Daftar Kelas', icon: 'clipboard-list', handler: () => render.page('Daftar Kelas', render.daftarKelas) },
@@ -141,8 +232,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         setupUI();
         const token = localStorage.getItem('token');
-        if (!token) { window.location.href = 'login.html'; return; }
-        showDashboard();
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!token || !user || user.role !== 'pimpinan') { logout(); return; }
+        ui.appShell.style.display = 'flex';
+        renderLayout(user);
         ui.logoutBtn.addEventListener('click', logout);
     });
 </script>

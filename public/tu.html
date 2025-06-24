@@ -5,153 +5,695 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dasbor Tata Usaha - EduPortal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
         #app-shell { display: none; }
-        .nav-link.active { background-color: #eef2ff; color: #4f46e5; font-weight: 600; }
-        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; border-radius: 0.25rem; }
+        .nav-link {
+            transition: all 0.2s ease-in-out;
+            border-radius: 0.5rem;
+        }
+        .nav-link:hover {
+            background-color: #f3f4f6;
+            transform: translateX(4px);
+        }
+        .nav-link.active {
+            background-color: #e0e7ff;
+            color: #4f46e5;
+            font-weight: 600;
+        }
+        .modal {
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            animation: slideUp 0.3s ease-out;
+        }
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-sm:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        .card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: transform 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            width: 100%;
+        }
+        th, td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem;
+            text-align: left;
+        }
+        thead th {
+            border-top: 1px solid #e5e7eb;
+            border-bottom-width: 2px;
+        }
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+        tbody tr:last-child td {
+             border-bottom: none;
+        }
+        tr:hover {
+            background-color: #f9fafb;
+        }
+        .chart-container {
+            max-height: 300px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.5rem;
+            height: 1.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background-color: #ef4444;
+            color: white;
+            margin-left: 0.5rem;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @media print {
+            body * { visibility: hidden; }
+            .printable-area, .printable-area * { visibility: visible; }
+            .printable-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                padding: 2rem;
+                background: white;
+            }
+            .no-print { display: none !important; }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
-    <div id="app-shell" class="hidden h-screen bg-gray-100">
+    <div id="app-shell" class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
-        <div id="sidebar" class="w-64 bg-white shadow-lg flex-shrink-0 flex flex-col">
-            <div class="p-6 border-b"><h1 class="text-2xl font-bold text-indigo-600">EduPortal</h1></div>
-            <div class="p-4 border-b"><div id="user-profile-info"></div></div>
-            <nav id="nav-container" class="p-4 space-y-2 flex-grow"></nav>
-            <div class="p-4 border-t"><button id="logout-btn" class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i>Logout</button></div>
+        <div id="sidebar" class="w-64 bg-white shadow-xl flex-shrink-0 flex flex-col transition-all duration-300 no-print">
+            <div class="p-6 border-b border-gray-200">
+                <h1 class="text-2xl font-bold text-indigo-600 flex items-center gap-2">
+                    <i data-lucide="graduation-cap" class="w-6 h-6"></i>EduPortal
+                </h1>
+            </div>
+            <div id="user-profile-container" class="p-4 border-b border-gray-200">
+                <div id="user-profile-info" class="flex items-center space-x-3"></div>
+            </div>
+            <nav id="nav-container" class="p-4 space-y-1 flex-grow overflow-y-auto"></nav>
+            <div class="p-4 border-t border-gray-200">
+                <button id="logout-btn" class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200">
+                    <i data-lucide="log-out" class="w-5 h-5 mr-3"></i>Logout
+                </button>
+            </div>
         </div>
-        <!-- Konten Utama -->
+        <!-- Main Content -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <header class="flex justify-between items-center p-4 bg-white border-b"><h2 id="page-title" class="text-xl font-semibold text-gray-800">Administrasi</h2></header>
-            <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto p-6"></main>
+            <header class="flex justify-between items-center p-4 bg-white border-b border-gray-200 no-print">
+                <h2 id="page-title" class="text-xl font-semibold text-gray-800"></h2>
+            </header>
+            <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto p-6">
+                <div class="max-w-7xl mx-auto"></div>
+            </main>
         </div>
     </div>
+    <div id="modal-container"></div>
 
 <script>
-    const API_URL = 'http://localhost:5000';
+    const API_URL = 'http://localhost:5000'; 
     const ui = {};
+    let appState = { 
+        chartInstance: null,
+        riwayatTransaksi: []
+    };
 
     const render = {
         page: (title, handler) => {
             ui.pageTitle.textContent = title;
-            ui.mainContent.innerHTML = `<div id="content-wrapper" class="bg-white p-6 rounded-xl shadow-md min-h-full"></div>`;
+            ui.mainContent.querySelector('.max-w-7xl').innerHTML = `<div id="content-wrapper"></div>`;
             handler(document.getElementById('content-wrapper'));
         },
-        manajemenPembayaran: async (container) => {
-            container.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8"><div id="form-pembayaran-container">Memuat form...</div><div id="jenis-pembayaran-container">Memuat jenis pembayaran...</div></div>`;
-            render.formPembayaran(document.getElementById('form-pembayaran-container'));
-            render.manajemenJenisPembayaran(document.getElementById('jenis-pembayaran-container'));
+
+        dashboardKeuangan: async (container) => {
+            container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><div class="card bg-white p-6 border-l-4 border-green-500 transition-all"><div class="flex items-center"><i data-lucide="wallet" class="w-8 h-8 text-green-500 mr-4"></i><div><p class="text-sm text-gray-500">Pemasukan Hari Ini</p><p id="summary-pemasukan-hari-ini" class="text-2xl font-bold">...</p></div></div></div><div class="card bg-white p-6 border-l-4 border-blue-500 transition-all"><div class="flex items-center"><i data-lucide="receipt" class="w-8 h-8 text-blue-500 mr-4"></i><div><p class="text-sm text-gray-500">Transaksi Hari Ini</p><p id="summary-transaksi-hari-ini" class="text-2xl font-bold">...</p></div></div></div><div class="card bg-white p-6 border-l-4 border-red-500 transition-all"><div class="flex items-center"><i data-lucide="alert-circle" class="w-8 h-8 text-red-500 mr-4"></i><div><p class="text-sm text-gray-500">Total Tunggakan</p><p id="summary-total-tunggakan" class="text-2xl font-bold">...</p></div></div></div></div><div class="card bg-white p-6 mt-6"><h3 class="font-semibold text-lg mb-4">Grafik Pemasukan Bulanan</h3><div class="chart-container"><canvas id="pemasukanChart"></canvas></div></div>`;
+            lucide.createIcons();
+            const result = await apiRequest('/api/dashboard/keuangan');
+            if (result && result.data) {
+                const { ringkasan, grafikPemasukan } = result.data;
+                document.getElementById('summary-pemasukan-hari-ini').textContent = `Rp ${new Intl.NumberFormat('id-ID').format(ringkasan.pemasukanHariIni)}`;
+                document.getElementById('summary-transaksi-hari-ini').textContent = ringkasan.transaksiHariIni;
+                document.getElementById('summary-total-tunggakan').textContent = `Rp ${new Intl.NumberFormat('id-ID').format(ringkasan.totalTunggakan)}`;
+                const ctx = document.getElementById('pemasukanChart').getContext('2d');
+                if (appState.chartInstance) appState.chartInstance.destroy();
+                appState.chartInstance = new Chart(ctx, { 
+                    type: 'line', 
+                    data: { 
+                        labels: grafikPemasukan.labels, 
+                        datasets: [{ 
+                            label: 'Pemasukan', 
+                            data: grafikPemasukan.data, 
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)', 
+                            borderColor: '#4f46e5', 
+                            tension: 0.3, 
+                            fill: true 
+                        }] 
+                    }, 
+                    options: { 
+                        scales: { y: { beginAtZero: true } },
+                        plugins: { legend: { display: false } },
+                        maintainAspectRatio: false
+                    } 
+                });
+            }
         },
-        formPembayaran: async (container) => {
-            const [siswaResult, jenisResult] = await Promise.all([
-                apiRequest('/api/users/by-role/siswa'),
-                apiRequest('/api/jenis-pembayaran')
-            ]);
-            if (!siswaResult || !jenisResult) { container.innerHTML = '<p>Gagal memuat data master.</p>'; return; }
-            const siswaOptions = siswaResult.data.map(s => `<option value="${s._id}">${s.name}</option>`).join('');
-            const jenisOptions = jenisResult.data.map(j => `<option value="${j._id}" data-jumlah="${j.jumlah}">${j.nama} - Rp ${j.jumlah.toLocaleString('id-ID')}</option>`).join('');
-            container.innerHTML = `<h3 class="font-semibold text-lg mb-4">Catat Transaksi Pembayaran</h3><form id="form-pembayaran" class="p-4 border rounded-lg bg-gray-50 space-y-4"><div><label class="text-sm font-medium">Siswa</label><select name="siswa" class="w-full p-2 border rounded mt-1" required><option value="">Pilih Siswa</option>${siswaOptions}</select></div><div><label class="text-sm font-medium">Jenis Pembayaran</label><select name="jenisPembayaran" id="pembayaran-jenis" class="w-full p-2 border rounded mt-1" required><option value="">Pilih Jenis Pembayaran</option>${jenisOptions}</select></div><div><label class="text-sm font-medium">Jumlah Bayar</label><input type="number" name="jumlahBayar" id="pembayaran-jumlah" placeholder="Jumlah yang dibayar" class="w-full p-2 border rounded mt-1" required></div><div><label class="text-sm font-medium">Status</label><select name="status" class="w-full p-2 border rounded mt-1" required><option value="LUNAS">Lunas</option><option value="CICILAN">Cicilan</option></select></div><div><label class="text-sm font-medium">Keterangan (Opsional)</label><input type="text" name="keterangan" class="w-full p-2 border rounded mt-1"></div><div><button type="submit" class="w-full bg-green-600 text-white p-2 rounded-lg font-semibold">Simpan Pembayaran</button></div></form>`;
-            document.getElementById('pembayaran-jenis').addEventListener('change', (e) => { const selectedOption = e.target.options[e.target.selectedIndex]; document.getElementById('pembayaran-jumlah').value = selectedOption.dataset.jumlah || ''; });
-            document.getElementById('form-pembayaran').addEventListener('submit', handle.pembayaranSubmit);
-        },
-        manajemenJenisPembayaran: async (container) => {
-            container.innerHTML = `<h3 class="font-semibold text-lg mb-4">Manajemen Jenis Pembayaran</h3><form id="form-jenis-pembayaran" class="p-4 border rounded-lg bg-gray-50 space-y-4 mb-6"><h4 class="font-semibold">Tambah Jenis Baru</h4><div><label class="text-sm font-medium">Nama Tagihan</label><input type="text" name="nama" placeholder="e.g., SPP Agustus 2025" class="w-full p-2 border rounded mt-1" required></div><div><label class="text-sm font-medium">Jumlah Tagihan (Rp)</label><input type="number" name="jumlah" placeholder="e.g., 500000" class="w-full p-2 border rounded mt-1" required></div><div><button type="submit" class="w-full bg-blue-600 text-white p-2 rounded-lg font-semibold">Tambah Jenis</button></div></form><div id="list-jenis-pembayaran">Memuat...</div>`;
-            document.getElementById('form-jenis-pembayaran').addEventListener('submit', handle.jenisPembayaranSubmit);
-            handle.fetchAndDisplayJenisPembayaran();
-        },
-        riwayatTransaksi: async (container) => {
-            container.innerHTML = 'Memuat riwayat transaksi...';
-            const result = await apiRequest('/api/pembayaran');
-            if (!result || !result.data) { container.innerHTML = 'Gagal memuat data.'; return; }
-            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="bg-gray-100 text-gray-600 uppercase"><tr><th class="p-3">Tanggal</th><th class="p-3">Siswa</th><th class="p-3">Pembayaran</th><th class="p-3 text-right">Jumlah</th><th class="p-3">Status</th><th class="p-3">Petugas</th></tr></thead><tbody class="divide-y">`;
-            if (result.data.length > 0) {
-                result.data.forEach(p => { tableHTML += `<tr class="hover:bg-gray-50"><td class="p-3">${new Date(p.tanggalBayar).toLocaleDateString('id-ID')}</td><td class="p-3 font-medium">${p.siswa.name}</td><td class="p-3">${p.jenisPembayaran.nama}</td><td class="p-3 text-right">Rp ${p.jumlahBayar.toLocaleString('id-ID')}</td><td class="p-3">${p.status}</td><td class="p-3">${p.dicatatOleh.name}</td></tr>`; });
+
+        manajemenTunggakan: async (container) => {
+            container.innerHTML = `<div class="mb-4 card p-6 no-print"><label for="tunggakan-kelas-selector" class="block text-sm font-medium mb-1">Pilih Kelas</label><select id="tunggakan-kelas-selector" class="w-full max-w-xs p-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500"><option value="">Memuat kelas...</option></select></div><div id="tunggakan-table-container" class="overflow-x-auto card p-6"></div>`;
+            const kelasResult = await apiRequest('/api/kelas');
+            const kelasSelector = document.getElementById('tunggakan-kelas-selector');
+            if (kelasResult && kelasResult.data) {
+                kelasSelector.innerHTML = '<option value="">-- Pilih Kelas --</option>';
+                kelasResult.data.forEach(k => { kelasSelector.innerHTML += `<option value="${k._id}">${k.namaKelas}</option>`; });
             } else {
-                tableHTML += `<tr><td colspan="6" class="p-4 text-center text-gray-500">Belum ada riwayat transaksi.</td></tr>`;
+                kelasSelector.innerHTML = '<option value="">Gagal memuat kelas</option>';
             }
-            tableHTML += '</tbody></table></div>';
-            container.innerHTML = tableHTML;
+            kelasSelector.addEventListener('change', async (e) => {
+                const kelasId = e.target.value;
+                const tableContainer = document.getElementById('tunggakan-table-container');
+                if (!kelasId) { tableContainer.innerHTML = ''; return; }
+                tableContainer.innerHTML = '<div class="text-center py-4"><i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-600"></i></div>';
+                lucide.createIcons();
+                const tunggakanResult = await apiRequest(`/api/keuangan/tunggakan/${kelasId}`);
+                if (tunggakanResult && tunggakanResult.data) {
+                    let tableHTML = `<table class="text-sm"><thead class="bg-gray-100"><tr><th>Nama Siswa</th><th>Total Tagihan</th><th>Sudah Dibayar</th><th>Tunggakan</th><th class="no-print">Aksi</th></tr></thead><tbody class="divide-y">`;
+                    if (tunggakanResult.data.length > 0) {
+                        tunggakanResult.data.forEach(t => {
+                            const tunggakan = t.totalTagihan - t.totalBayar;
+                            tableHTML += `<tr class="hover:bg-gray-50 ${tunggakan > 0 ? 'bg-red-50' : 'bg-green-50'}"><td class="p-4 font-medium">${t.siswa.name}</td><td>Rp ${new Intl.NumberFormat('id-ID').format(t.totalTagihan)}</td><td>Rp ${new Intl.NumberFormat('id-ID').format(t.totalBayar)}</td><td class="font-bold ${tunggakan > 0 ? 'text-red-600' : 'text-green-600'}">Rp ${new Intl.NumberFormat('id-ID').format(tunggakan)}</td><td class="no-print"><button class="text-indigo-600 hover:underline text-sm font-semibold" onclick="handle.showDetailSiswaModal('${t.siswa._id}', '${t.siswa.name}')">Detail</button></td></tr>`;
+                        });
+                    } else {
+                        tableHTML += `<tr><td colspan="5" class="p-4 text-center text-gray-500">Tidak ada siswa di kelas ini.</td></tr>`;
+                    }
+                    tableHTML += '</tbody></table>';
+                    tableContainer.innerHTML = tableHTML;
+                } else {
+                    tableContainer.innerHTML = '<p class="text-red-500 text-center py-4">Gagal memuat data tunggakan.</p>';
+                }
+            });
         },
-    };
-    const handle = {
-        fetchAndDisplayJenisPembayaran: async () => {
-            const container = document.getElementById('list-jenis-pembayaran');
-            container.innerHTML = 'Memuat...'; const result = await apiRequest('/api/jenis-pembayaran');
-            if (!result || !result.data) { container.innerHTML = '<p>Gagal memuat data.</p>'; return; }
-            let listHTML = '<div class="space-y-2 mt-4">';
-            result.data.forEach(jenis => { listHTML += `<div class="p-3 border rounded flex justify-between items-center"><div><p class="font-semibold">${jenis.nama}</p><p class="text-sm text-gray-500">Rp ${jenis.jumlah.toLocaleString('id-ID')}</p></div><button class="bg-red-500 text-white btn-sm" onclick="handle.deleteJenisPembayaran('${jenis._id}')">Hapus</button></div>`; });
-            listHTML += '</div>';
-            container.innerHTML = listHTML || '<p>Belum ada jenis pembayaran dibuat.</p>';
+        
+        manajemenPembayaran: async (container) => {
+            container.innerHTML = `
+                <div class="space-y-8">
+                    <div class="card p-6">
+                        <h3 class="font-semibold text-lg mb-4 flex items-center">
+                            <i data-lucide="check-square" class="w-5 h-5 mr-2 text-indigo-600"></i>
+                            Menunggu Verifikasi Pembayaran
+                        </h3>
+                        <div id="verifikasi-container" class="overflow-x-auto"></div>
+                    </div>
+                    <div class="card p-6">
+                        <h3 class="font-semibold text-lg mb-4 flex items-center">
+                            <i data-lucide="edit" class="w-5 h-5 mr-2 text-indigo-600"></i>
+                            Catat Pembayaran Manual
+                        </h3>
+                        <div id="form-pembayaran-container" class="max-w-2xl mx-auto"></div>
+                    </div>
+                </div>`;
+            lucide.createIcons();
+            await Promise.all([handle.loadVerifikasiList(), handle.renderFormPembayaran()]);
         },
-        jenisPembayaranSubmit: async (e) => {
-            e.preventDefault(); const form = e.target;
-            const body = { nama: form.nama.value, jumlah: form.jumlah.value };
-            await apiRequest('/api/jenis-pembayaran', 'POST', body);
-            alert('Jenis pembayaran baru berhasil dibuat!');
-            form.reset(); handle.fetchAndDisplayJenisPembayaran();
-            render.formPembayaran(document.getElementById('form-pembayaran-container'));
+
+        riwayatTransaksi: async (container) => {
+            container.innerHTML = `<div class="card p-6 mb-6 no-print"><form id="filter-riwayat-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end"><div class="md:col-span-2"><label for="search-riwayat" class="block text-sm font-medium text-gray-700">Cari Nama Siswa</label><input type="text" id="search-riwayat" class="w-full mt-1 p-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ketik nama siswa..."></div><div><label for="tanggal-mulai" class="block text-sm font-medium text-gray-700">Dari Tanggal</label><input type="date" name="tanggalMulai" id="tanggal-mulai" class="mt-1 p-2 w-full border rounded-lg focus:ring-indigo-500 focus:border-indigo-500"></div><div><label for="tanggal-selesai" class="block text-sm font-medium text-gray-700">Sampai Tanggal</label><input type="date" name="tanggalSelesai" id="tanggal-selesai" class="mt-1 p-2 w-full border rounded-lg focus:ring-indigo-500 focus:border-indigo-500"></div></form><div class="mt-4 flex space-x-3"><button type="button" id="filter-btn" class="btn-primary btn-sm font-semibold">Tampilkan Laporan</button><button type="button" id="cetak-laporan-btn" class="btn-sm font-semibold bg-gray-600 text-white hover:bg-gray-700">Cetak Laporan</button></div></div><div id="laporan-area" class="printable-area card p-6"><h3 id="laporan-title" class="text-xl font-bold mb-4 hidden print:block">Laporan Riwayat Transaksi</h3><div id="riwayat-table-container" class="overflow-x-auto"><p>Memuat riwayat transaksi...</p></div></div>`;
+            document.getElementById('filter-btn').addEventListener('click', handle.refreshRiwayatTable);
+            document.getElementById('search-riwayat').addEventListener('input', handle.searchRiwayat);
+            document.getElementById('cetak-laporan-btn').addEventListener('click', () => window.print());
+            await handle.refreshRiwayatTable();
         },
-        deleteJenisPembayaran: async (id) => {
-            if (confirm('Yakin ingin menghapus jenis pembayaran ini?')) {
-                await apiRequest(`/api/jenis-pembayaran/${id}`, 'DELETE');
-                handle.fetchAndDisplayJenisPembayaran();
-                render.formPembayaran(document.getElementById('form-pembayaran-container'));
+
+        kelolaJenisPembayaran: (container) => {
+            container.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-1">
+                        <form id="form-jenis-pembayaran" class="card p-6 space-y-4">
+                            <h3 class="font-semibold text-lg">Tambah/Edit Jenis Pembayaran</h3>
+                            <input type="hidden" name="jenisId" id="jenisId">
+                            <div>
+                                <label for="nama" class="block text-sm font-medium text-gray-700">Nama Pembayaran</label>
+                                <input type="text" name="nama" id="nama" class="mt-1 p-2 w-full border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Contoh: SPP Bulan Agustus" required>
+                            </div>
+                            <div>
+                                <label for="jumlah" class="block text-sm font-medium text-gray-700">Jumlah (Rp)</label>
+                                <input type="number" name="jumlah" id="jumlah" class="mt-1 p-2 w-full border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Contoh: 750000" required>
+                            </div>
+                            <div>
+                                <label for="deskripsi" class="block text-sm font-medium text-gray-700">Deskripsi</label>
+                                <textarea name="deskripsi" id="deskripsi" rows="3" class="mt-1 p-2 w-full border rounded-lg focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                            </div>
+                            <div id="form-buttons">
+                                <button type="submit" class="btn-primary btn-sm w-full font-semibold">Tambah Baru</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="md:col-span-2">
+                        <div class="card p-6">
+                          <h3 class="font-semibold text-lg mb-4">Daftar Jenis Pembayaran</h3>
+                          <div id="list-jenis-pembayaran" class="overflow-x-auto"></div>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('form-jenis-pembayaran').addEventListener('submit', handle.submitJenisPembayaran);
+            handle.refreshJenisPembayaranList();
+        },
+    
+        tabelRiwayat: (data) => {
+            const tableContainer = document.getElementById('riwayat-table-container');
+            let tableHTML = `<table class="text-sm"><thead class="bg-gray-100"><tr><th>Tanggal</th><th>Siswa</th><th>Jenis Pembayaran</th><th class="text-right">Jumlah</th><th>Keterangan</th><th class="no-print">Aksi</th></tr></thead><tbody class="divide-y">`;
+            if (data.length > 0) {
+                data.forEach(p => {
+                    const pembayaranJson = JSON.stringify(p).replace(/"/g, "&quot;");
+                    tableHTML += `<tr class="hover:bg-gray-50">
+                        <td>${new Date(p.tanggalBayar).toLocaleDateString('id-ID')}</td>
+                        <td class="font-medium">${p.siswa?.name || '<i class="text-red-500">Siswa Dihapus</i>'}</td>
+                        <td>${p.jenisPembayaran?.nama || '<i class="text-red-500">Jenis Dihapus</i>'}</td>
+                        <td class="text-right font-semibold">Rp ${new Intl.NumberFormat('id-ID').format(p.jumlahBayar)}</td>
+                        <td>${p.keterangan || '-'}</td>
+                        <td class="flex space-x-2 no-print">
+                            <button class="text-blue-600 hover:underline" onclick='handle.showEditPembayaranModal(${pembayaranJson})'><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                            <button class="text-red-600 hover:underline" onclick="handle.deletePembayaran('${p._id}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </td>
+                    </tr>`;
+                });
+            } else {
+                tableHTML += `<tr><td colspan="6" class="p-4 text-center text-gray-500">Tidak ada data yang cocok.</td></tr>`;
             }
-        },
-        pembayaranSubmit: async (e) => {
-            e.preventDefault(); const form = e.target;
-            const body = { siswa: form.siswa.value, jenisPembayaran: form.jenisPembayaran.value, jumlahBayar: form.jumlahBayar.value, status: form.status.value, keterangan: form.keterangan.value, };
-            if (!body.siswa || !body.jenisPembayaran) { alert('Siswa dan Jenis Pembayaran harus dipilih.'); return; }
-            await apiRequest('/api/pembayaran', 'POST', body);
-            alert('Pembayaran berhasil dicatat!');
-            form.reset();
+            tableHTML += '</tbody></table>';
+            tableContainer.innerHTML = tableHTML;
+            lucide.createIcons();
         }
     };
+
+    const handle = {
+        submitPembayaran: async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const submitButton = form.querySelector('button[type="submit"]');
+            const body = { 
+                siswa: form.siswa.value, 
+                jenisPembayaran: form.jenisPembayaran.value, 
+                jumlahBayar: parseInt(form.jumlahBayar.value), 
+                keterangan: form.keterangan.value 
+            };
+            if (!body.siswa || !body.jenisPembayaran || !body.jumlahBayar) { 
+                showModalAlert('Siswa, Jenis Pembayaran, dan Jumlah Bayar wajib diisi.'); 
+                return; 
+            }
+            submitButton.disabled = true; 
+            submitButton.innerHTML = '<i class="animate-spin" data-lucide="loader-2"></i> Menyimpan...';
+            lucide.createIcons();
+            const result = await apiRequest('/api/pembayaran', 'POST', body);
+            submitButton.disabled = false; 
+            submitButton.innerHTML = 'Simpan Pembayaran';
+            if (result) { 
+                showModalAlert('Pembayaran berhasil dicatat!'); 
+                form.reset(); 
+            }
+        },
+
+        refreshJenisPembayaranList: async () => {
+            const listContainer = document.getElementById('list-jenis-pembayaran');
+            listContainer.innerHTML = '<div class="text-center py-4"><i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-600"></i></div>';
+            lucide.createIcons();
+            const result = await apiRequest('/api/jenis-pembayaran');
+            if (result && result.data) {
+                let tableHTML = `<table class="text-sm"><thead class="bg-gray-100"><tr><th>Nama</th><th class="text-right">Jumlah</th><th>Aksi</th></tr></thead><tbody class="divide-y">`;
+                if (result.data.length > 0) {
+                    result.data.forEach(jp => {
+                        const jpJson = JSON.stringify(jp).replace(/"/g, "&quot;");
+                        tableHTML += `<tr class="hover:bg-gray-50"><td class="font-medium">${jp.nama}</td><td class="text-right">Rp ${new Intl.NumberFormat('id-ID').format(jp.jumlah)}</td><td class="flex space-x-2"><button class="text-blue-600 hover:underline" onclick='handle.showEditJenisModal(${jpJson})'><i data-lucide="edit" class="w-4 h-4"></i></button><button class="text-red-600 hover:underline" onclick="handle.deleteJenis('${jp._id}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
+                    });
+                } else {
+                    tableHTML += `<tr><td colspan="3" class="p-4 text-center text-gray-500">Belum ada jenis pembayaran.</td></tr>`;
+                }
+                tableHTML += '</tbody></table>';
+                listContainer.innerHTML = tableHTML;
+                lucide.createIcons();
+            } else {
+                listContainer.innerHTML = `<p class="text-red-500 text-center py-4">Gagal memuat data.</p>`;
+            }
+        },
+
+        renderFormPembayaran: async () => {
+            const container = document.getElementById('form-pembayaran-container');
+            container.innerHTML = `<form id="form-pembayaran" class="space-y-4"><div><label for="siswa-selector" class="block text-sm font-medium text-gray-700">Pilih Siswa</label><select id="siswa-selector" name="siswa" class="mt-1 w-full p-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Memuat siswa...</option></select></div><div><label for="jenis-pembayaran-selector" class="block text-sm font-medium text-gray-700">Jenis Pembayaran</label><select id="jenis-pembayaran-selector" name="jenisPembayaran" class="mt-1 w-full p-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Memuat jenis pembayaran...</option></select></div><div><label for="jumlah-bayar" class="block text-sm font-medium text-gray-700">Jumlah Bayar</label><input type="number" name="jumlahBayar" id="jumlah-bayar" class="mt-1 p-2 w-full border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Contoh: 500000" required></div><div><label for="keterangan" class="block text-sm font-medium text-gray-700">Keterangan (Opsional)</label><textarea name="keterangan" id="keterangan" rows="3" class="mt-1 p-2 w-full border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Contoh: Pembayaran SPP bulan Juli"></textarea></div><div><button type="submit" class="btn-primary btn-sm w-full font-semibold">Simpan Pembayaran</button></div></form>`;
+            
+            const [siswaResult, jenisPembayaranResult] = await Promise.all([apiRequest('/api/users/by-role/siswa'), apiRequest('/api/jenis-pembayaran')]);
+            
+            const siswaSelector = document.getElementById('siswa-selector');
+            if (siswaResult && siswaResult.data) {
+                siswaSelector.innerHTML = '<option value="">-- Pilih Siswa --</option>';
+                siswaResult.data.forEach(s => { siswaSelector.innerHTML += `<option value="${s._id}">${s.name}</option>`; });
+            } else { 
+                siswaSelector.innerHTML = '<option value="">Gagal memuat siswa</option>'; 
+            }
+            
+            const jenisPembayaranSelector = document.getElementById('jenis-pembayaran-selector');
+            if (jenisPembayaranResult && jenisPembayaranResult.data) {
+                jenisPembayaranSelector.innerHTML = '<option value="">-- Pilih Jenis Pembayaran --</option>';
+                // **PERBAIKAN KUNCI**: Menggunakan variabel yang benar `jenisPembayaranResult`
+                jenisPembayaranResult.data.forEach(jp => { 
+                    jenisPembayaranSelector.innerHTML += `<option value="${jp._id}">${jp.nama} (Rp ${new Intl.NumberFormat('id-ID').format(jp.jumlah)})</option>`; 
+                });
+            } else { 
+                jenisPembayaranSelector.innerHTML = '<option value="">Gagal memuat data</option>'; 
+            }
+            document.getElementById('form-pembayaran').addEventListener('submit', handle.submitPembayaran);
+        },
+
+        loadVerifikasiList: async () => {
+            const container = document.getElementById('verifikasi-container');
+            container.innerHTML = '<div class="text-center py-4"><i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-600"></i></div>';
+            lucide.createIcons();
+            const result = await apiRequest('/api/pembayaran/konfirmasi/pending');
+            if (result && result.data) {
+                const badge = document.getElementById('verifikasi-badge');
+                if (badge) {
+                    badge.textContent = result.data.length;
+                    badge.style.display = result.data.length > 0 ? 'inline-flex' : 'none';
+                }
+                if (result.data.length === 0) {
+                    container.innerHTML = '<p class="p-4 text-center text-gray-500">Tidak ada konfirmasi pembayaran yang menunggu.</p>';
+                    return;
+                }
+                let tableHTML = `<table class="text-sm"><thead class="bg-gray-100"><tr><th>Siswa</th><th>Pembayaran</th><th class="text-right">Jumlah</th><th class="text-center">Bukti</th><th>Aksi</th></tr></thead><tbody class="divide-y">`;
+                result.data.forEach(k => { 
+                    // **PERBAIKAN KUNCI**: Menggunakan properti `jenisPembayaran` dan `buktiPembayaran` yang benar
+                    tableHTML += `<tr class="hover:bg-gray-50">
+                        <td>${k.siswa?.name || 'N/A'}</td>
+                        <td>${k.jenisPembayaran?.nama || 'N/A'}</td>
+                        <td class="text-right">Rp ${new Intl.NumberFormat('id-ID').format(k.jumlah)}</td>
+                        <td class="text-center"><a href="${API_URL}${k.buktiPembayaran}" target="_blank" class="text-blue-600 hover:underline">Lihat</a></td>
+                        <td class="flex space-x-2">
+                            <button onclick="handle.verifikasiPembayaran('${k._id}', 'Approved')" class="btn-sm text-white bg-green-600 hover:bg-green-700">Setujui</button>
+                            <button onclick="handle.verifikasiPembayaran('${k._id}', 'Rejected')" class="btn-sm text-white bg-red-600 hover:bg-red-700">Tolak</button>
+                        </td>
+                    </tr>`;
+                });
+                tableHTML += '</tbody></table>';
+                container.innerHTML = tableHTML;
+            } else {
+                container.innerHTML = '<p class="text-red-500 p-4 text-center">Gagal memuat data verifikasi.</p>';
+            }
+        },
+
+        verifikasiPembayaran: async (konfirmasiId, status) => {
+            const action = status === 'Approved' ? 'menyetujui' : 'menolak';
+            showModalConfirm(`Anda yakin ingin ${action} konfirmasi ini?`, async () => {
+                const result = await apiRequest(`/api/pembayaran/konfirmasi/${konfirmasiId}/verifikasi`, 'POST', { status });
+                if (result) {
+                    showModalAlert(`Konfirmasi berhasil di-${action}.`);
+                    handle.loadVerifikasiList();
+                }
+            });
+        },
+
+        submitJenisPembayaran: async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const id = form.jenisId.value;
+            const body = {
+                nama: form.nama.value,
+                jumlah: parseInt(form.jumlah.value),
+                deskripsi: form.deskripsi.value,
+            };
+            const method = id ? 'PUT' : 'POST';
+            const endpoint = id ? `/api/jenis-pembayaran/${id}` : '/api/jenis-pembayaran';
+            const result = await apiRequest(endpoint, method, body);
+            if (result) {
+                showModalAlert(`Jenis pembayaran berhasil ${id ? 'diperbarui' : 'ditambahkan'}!`);
+                handle.resetJenisForm();
+                handle.refreshJenisPembayaranList();
+            }
+        },
+        
+        showEditJenisModal: (jp) => {
+            document.getElementById('jenisId').value = jp._id;
+            document.getElementById('nama').value = jp.nama;
+            document.getElementById('jumlah').value = jp.jumlah;
+            document.getElementById('deskripsi').value = jp.deskripsi;
+            document.getElementById('form-buttons').innerHTML = `
+                <button type="submit" class="btn-sm w-full font-semibold bg-yellow-500 text-white hover:bg-yellow-600">Simpan Perubahan</button>
+                <button type="button" onclick="handle.resetJenisForm()" class="w-full mt-2 text-center text-sm text-gray-600 hover:underline">Batal</button>`;
+        },
+
+        resetJenisForm: () => {
+            const form = document.getElementById('form-jenis-pembayaran');
+            form.reset();
+            form.jenisId.value = '';
+            document.getElementById('form-buttons').innerHTML = `<button type="submit" class="btn-primary btn-sm w-full font-semibold">Tambah Baru</button>`;
+        },
+
+        deleteJenis: async (id) => {
+            showModalConfirm('Anda yakin ingin menghapus jenis pembayaran ini? Ini mungkin akan mempengaruhi data tunggakan.', async () => {
+                const result = await apiRequest(`/api/jenis-pembayaran/${id}`, 'DELETE');
+                if (result) {
+                    showModalAlert('Jenis pembayaran berhasil dihapus.');
+                    handle.refreshJenisPembayaranList();
+                }
+            });
+        },
+
+        searchRiwayat: () => {
+            const searchTerm = document.getElementById('search-riwayat').value.toLowerCase();
+            if (!appState.riwayatTransaksi) return; 
+            
+            const filteredData = appState.riwayatTransaksi.filter(p => 
+                p.siswa?.name.toLowerCase().includes(searchTerm)
+            );
+            render.tabelRiwayat(filteredData);
+        },
+
+        showDetailSiswaModal: async (siswaId, siswaName) => {
+            ui.modalContainer.innerHTML = `<div id="detail-siswa-modal" class="modal active fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div class="modal-content bg-white p-8 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"><div class="flex justify-between items-center border-b pb-3 no-print"><h2 class="text-xl font-bold text-gray-900">Detail Keuangan: ${siswaName}</h2><button onclick="ui.modalContainer.innerHTML=''" class="p-1 rounded-full hover:bg-gray-200"><i data-lucide="x" class="w-5 h-5"></i></button></div><div id="modal-content-body" class="py-4 overflow-y-auto printable-area"><div class="text-center py-4"><i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-600"></i></div></div></div></div>`;
+            lucide.createIcons();
+            const result = await apiRequest(`/api/keuangan/detail-siswa/${siswaId}`);
+            const modalBody = document.getElementById('modal-content-body');
+            if (result && result.data) {
+                const { summary, rincianTagihan, riwayatPembayaran } = result.data;
+                let tagihanHTML = '';
+                if (rincianTagihan.length > 0) {
+                    rincianTagihan.forEach(t => {
+                        const statusClass = t.status === 'Lunas' ? 'bg-green-100 text-green-800' : (t.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800');
+                        tagihanHTML += `<tr class="hover:bg-gray-50"><td>${t.nama}</td><td class="text-right">Rp ${new Intl.NumberFormat('id-ID').format(t.jumlah)}</td><td class="text-center"><span class="px-2 py-1 text-xs font-semibold rounded-lg ${statusClass}">${t.status}</span></td></tr>`;
+                    });
+                } else {
+                    tagihanHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">Tidak ada tagihan.</td></tr>`;
+                }
+                let pembayaranHTML = '';
+                if (riwayatPembayaran.length > 0) {
+                    riwayatPembayaran.forEach(p => {
+                        pembayaranHTML += `<tr class="hover:bg-gray-50"><td>${new Date(p.tanggalBayar).toLocaleDateString('id-ID')}</td><td>${p.jenisPembayaran?.nama || 'N/A'}</td><td class="text-right">Rp ${new Intl.NumberFormat('id-ID').format(p.jumlahBayar)}</td></tr>`;
+                    });
+                } else {
+                    pembayaranHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">Belum ada pembayaran.</td></tr>`;
+                }
+                modalBody.innerHTML = `<h3 class="text-lg font-bold mb-4 print:block hidden text-gray-900">Detail Keuangan untuk ${siswaName}</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><div class="p-4 bg-blue-50 rounded-lg text-center"><p class="text-sm text-blue-800">Total Tagihan</p><p class="font-bold text-lg text-blue-900">Rp ${new Intl.NumberFormat('id-ID').format(summary.totalTagihan)}</p></div><div class="p-4 bg-green-50 rounded-lg text-center"><p class="text-sm text-green-800">Total Bayar</p><p class="font-bold text-lg text-green-900">Rp ${new Intl.NumberFormat('id-ID').format(summary.totalBayar)}</p></div><div class="p-4 bg-red-50 rounded-lg text-center"><p class="text-sm text-red-800">Sisa Tunggakan</p><p class="font-bold text-lg text-red-900">Rp ${new Intl.NumberFormat('id-ID').format(summary.sisaTunggakan)}</p></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div><h4 class="font-semibold mb-2 text-gray-900">Rincian Tagihan</h4><div class="overflow-x-auto card"><table class="text-sm"><thead class="bg-gray-100"><tr><th>Nama Tagihan</th><th class="text-right">Jumlah</th><th class="text-center">Status</th></tr></thead><tbody class="divide-y">${tagihanHTML}</tbody></table></div></div><div><h4 class="font-semibold mb-2 text-gray-900">Riwayat Pembayaran</h4><div class="overflow-x-auto card"><table class="text-sm"><thead class="bg-gray-100"><tr><th>Tanggal</th><th>Untuk</th><th class="text-right">Jumlah</th></tr></thead><tbody class="divide-y">${pembayaranHTML}</tbody></table></div></div></div><div class="mt-6 text-right no-print"><button onclick="window.print()" class="btn-primary btn-sm">Cetak Detail</button></div>`;
+            } else {
+                modalBody.innerHTML = `<p class="text-red-500 text-center py-4">Gagal memuat detail keuangan siswa.</p>`;
+            }
+        },
+
+        refreshRiwayatTable: async () => {
+            const tableContainer = document.getElementById('riwayat-table-container');
+            tableContainer.innerHTML = '<div class="text-center py-4"><i data-lucide="loader-2" class="w-6 h-6 animate-spin text-indigo-600"></i></div>';
+            lucide.createIcons();
+
+            const tanggalMulai = document.getElementById('tanggal-mulai').value;
+            const tanggalSelesai = document.getElementById('tanggal-selesai').value;
+            let queryString = '';
+
+            if (tanggalMulai && tanggalSelesai) {
+                queryString = `?tanggalMulai=${tanggalMulai}&tanggalSelesai=${tanggalSelesai}`;
+                const options = { day: 'numeric', month: 'long', year: 'numeric' };
+                document.getElementById('laporan-title').textContent = `Laporan Riwayat Transaksi (${new Date(tanggalMulai).toLocaleDateString('id-ID', options)} - ${new Date(tanggalSelesai).toLocaleDateString('id-ID', options)})`;
+            } else {
+                document.getElementById('laporan-title').textContent = `Laporan Riwayat Transaksi (Semua Waktu)`;
+            }
+            
+            const result = await apiRequest(`/api/pembayaran${queryString}`);
+            if (result && result.data) {
+                appState.riwayatTransaksi = result.data;
+                handle.searchRiwayat();
+            } else {
+                tableContainer.innerHTML = '<p class="text-red-500 text-center py-4">Gagal memuat riwayat transaksi.</p>';
+            }
+        },
+
+        deletePembayaran: async (pembayaranId) => {
+            showModalConfirm('Hapus transaksi ini? Aksi ini tidak dapat dibatalkan.', async () => {
+                const result = await apiRequest(`/api/pembayaran/${pembayaranId}`, 'DELETE');
+                if (result) {
+                    showModalAlert('Transaksi berhasil dihapus.');
+                    handle.refreshRiwayatTable();
+                }
+            });
+        },
+
+        showEditPembayaranModal: async (pembayaran) => {
+            const jenisPembayaranResult = await apiRequest('/api/jenis-pembayaran');
+            let jenisOptions = '<option value="">Memuat...</option>';
+            if (jenisPembayaranResult && jenisPembayaranResult.data) {
+                // **PERBAIKAN KUNCI**: Memastikan `pembayaran.jenisPembayaran` ada sebelum mengakses `_id`
+                jenisOptions = jenisPembayaranResult.data.map(jp => `<option value="${jp._id}" ${jp._id === pembayaran.jenisPembayaran?._id ? 'selected' : ''}>${jp.nama}</option>`).join('');
+            }
+            const modalHTML = `<div id="edit-pembayaran-modal" class="modal active fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div class="modal-content bg-white p-8 rounded-xl shadow-2xl w-full max-w-md"><form id="form-edit-pembayaran" class="space-y-4"><h3 class="text-lg font-bold text-gray-900">Edit Transaksi untuk ${pembayaran.siswa.name}</h3><input type="hidden" name="pembayaranId" value="${pembayaran._id}"><div><label class="block text-sm font-semibold text-gray-700">Jenis Pembayaran</label><select name="jenisPembayaran" class="w-full mt-1 p-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500">${jenisOptions}</select></div><div><label class="block text-sm font-semibold text-gray-700">Jumlah Bayar</label><input type="number" name="jumlahBayar" class="w-full mt-1 p-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500" value="${pembayaran.jumlahBayar}"></div><div><label class="block text-sm font-semibold text-gray-700">Keterangan</label><textarea name="keterangan" rows="2" class="w-full mt-1 p-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500">${pembayaran.keterangan || ''}</textarea></div><div class="flex justify-end space-x-3 pt-4"><button type="button" onclick="ui.modalContainer.innerHTML=''" class="bg-gray-200 btn-sm">Batal</button><button type="submit" class="btn-primary btn-sm">Simpan Perubahan</button></div></form></div></div>`;
+            ui.modalContainer.innerHTML = modalHTML;
+            document.getElementById('form-edit-pembayaran').addEventListener('submit', handle.submitEditPembayaran);
+        },
+
+        submitEditPembayaran: async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const pembayaranId = form.pembayaranId.value;
+            const body = { jenisPembayaran: form.jenisPembayaran.value, jumlahBayar: parseInt(form.jumlahBayar.value), keterangan: form.keterangan.value };
+            const result = await apiRequest(`/api/pembayaran/${pembayaranId}`, 'PUT', body);
+            if (result) {
+                showModalAlert('Transaksi berhasil diperbarui.');
+                ui.modalContainer.innerHTML = '';
+                handle.refreshRiwayatTable();
+            }
+        }
+    };
+
     async function apiRequest(endpoint, method = 'GET', body = null) {
-        const token = localStorage.getItem('token'); if (!token) { logout(); return; }
+        const token = localStorage.getItem('token');
+        if (!token) {
+            showModalAlert("Sesi Anda telah berakhir. Silakan login kembali.");
+            setTimeout(logout, 2000);
+            return null;
+        }
         const options = { method, headers: { 'Authorization': `Bearer ${token}` } };
-        if (body) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
+        if (body) { 
+            options.headers['Content-Type'] = 'application/json'; 
+            options.body = JSON.stringify(body); 
+        }
         try {
             const response = await fetch(`${API_URL}${endpoint}`, options);
-            if(response.status === 401) logout();
+            if (response.status === 401 || response.status === 403) { 
+                logout(); 
+                return null;
+            }
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message);
+            if (!response.ok) throw new Error(data.message || 'Terjadi kesalahan pada server.');
             return data;
-        } catch (error) { console.error("API Error:", error); alert(error.message); }
+        } catch (error) { 
+            console.error("API Error:", error.message, "on endpoint:", endpoint); 
+            showModalAlert(error.message); 
+            return null; 
+        }
     }
-    function setupUI() { const ids = ['app-shell','logout-btn','sidebar','user-profile-info','nav-container','main-content','page-title']; ids.forEach(id => { ui[id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase())] = document.getElementById(id); }); }
-    function showDashboard() {
-        const user = JSON.parse(localStorage.getItem('user'));
-        if (!user || user.role !== 'tata_usaha') { logout(); return; }
-        ui.appShell.style.display = 'flex';
-        renderLayout(user);
+
+    function setupUI() {
+        const ids = ['app-shell', 'logout-btn', 'sidebar', 'user-profile-info', 'nav-container', 'main-content', 'page-title', 'modal-container'];
+        ids.forEach(id => ui[id.replace(/-(\w)/g, (_, p1) => p1.toUpperCase())] = document.getElementById(id));
     }
+
     function renderLayout(user) {
-        ui.userProfileInfo.innerHTML = `<div class="w-10 h-10 bg-indigo-200 rounded-full flex items-center justify-center font-bold text-indigo-700">${user.name.charAt(0)}</div><div><p class="font-semibold">${user.name}</p><p class="text-sm text-gray-500">${user.role}</p></div>`;
+        ui.userProfileInfo.innerHTML = `<div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-white text-lg">${user.name.charAt(0)}</div><div><p class="font-semibold text-gray-900">${user.name}</p><p class="text-sm text-gray-500">Tata Usaha</p></div>`;
         const navItems = [
-            { text: 'Manajemen Pembayaran', icon: 'dollar-sign', handler: () => render.page('Manajemen Pembayaran', render.manajemenPembayaran) },
+            { text: 'Dashboard', icon: 'layout-dashboard', handler: () => render.page('Dashboard Keuangan', render.dashboardKeuangan), active: true },
+            { text: 'Manajemen Tunggakan', icon: 'alert-circle', handler: () => render.page('Manajemen Tunggakan Siswa', render.manajemenTunggakan) },
+            { text: 'Manajemen Pembayaran', icon: 'file-check', handler: () => render.page('Manajemen Pembayaran', render.manajemenPembayaran), notifId: 'verifikasi-badge' },
             { text: 'Riwayat Transaksi', icon: 'history', handler: () => render.page('Riwayat Transaksi', render.riwayatTransaksi) },
+            { text: 'Kelola Jenis Pembayaran', icon: 'settings', handler: () => render.page('Kelola Jenis Pembayaran', render.kelolaJenisPembayaran) }
         ];
         ui.navContainer.innerHTML = '';
-        navItems.forEach((item, index) => {
-            const link = document.createElement('a'); link.href = '#';
-            link.className = 'nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg';
-            if (index === 0) link.classList.add('active');
-            link.innerHTML = `<i data-lucide="${item.icon}" class="w-5 h-5 mr-3"></i><span>${item.text}</span>`;
-            link.onclick = (e) => { e.preventDefault(); document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); link.classList.add('active'); item.handler(); };
+        let initialHandler = navItems.find(item => item.active)?.handler || navItems[0].handler;
+        navItems.forEach(item => {
+            const link = document.createElement('a'); 
+            link.href = '#';
+            link.className = `nav-link flex items-center px-4 py-2 text-gray-700 ${item.active ? 'active' : ''}`;
+            link.innerHTML = `<i data-lucide="${item.icon}" class="w-5 h-5 mr-3 text-gray-500"></i><span class="text-sm font-medium">${item.text}</span>${item.notifId ? `<span id="${item.notifId}" class="badge" style="display: none;">0</span>` : ''}`;
+            link.onclick = (e) => { 
+                e.preventDefault(); 
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); 
+                link.classList.add('active'); 
+                item.handler(); 
+            };
             ui.navContainer.appendChild(link);
         });
         lucide.createIcons();
-        if (navItems.length > 0) navItems[0].handler();
+        initialHandler();
     }
+
+    function showModalAlert(message) {
+        const modalId = 'alert-modal-' + Date.now();
+        const modalHTML = `<div id="${modalId}" class="modal active fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div class="modal-content bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm text-center"><p class="mb-6 text-gray-600">${message}</p><button onclick="document.getElementById('${modalId}').remove()" class="btn-primary btn-sm">OK</button></div></div>`;
+        ui.modalContainer.insertAdjacentHTML('beforeend', modalHTML);
+    }
+
+    function showModalConfirm(message, onConfirm) {
+        const modalId = 'confirm-modal-' + Date.now();
+        const modalHTML = `<div id="${modalId}" class="modal active fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div class="modal-content bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm"><p class="mb-6 text-gray-600">${message}</p><div class="flex justify-center space-x-4"><button id="cancel-btn-${modalId}" class="bg-gray-200 btn-sm">Batal</button><button id="confirm-btn-${modalId}" class="btn-primary btn-sm">Ya, Lanjutkan</button></div></div></div>`;
+        ui.modalContainer.insertAdjacentHTML('beforeend', modalHTML);
+        document.getElementById(`cancel-btn-${modalId}`).onclick = () => document.getElementById(modalId).remove();
+        document.getElementById(`confirm-btn-${modalId}`).onclick = () => {
+            onConfirm();
+            document.getElementById(modalId).remove();
+        };
+    }
+
     const logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
+
     document.addEventListener('DOMContentLoaded', () => {
         setupUI();
         const token = localStorage.getItem('token');
-        if (!token) { window.location.href = 'login.html'; return; }
-        showDashboard();
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!token || !user || user.role !== 'tata_usaha') { logout(); return; }
+        ui.appShell.style.display = 'flex';
+        renderLayout(user);
         ui.logoutBtn.addEventListener('click', logout);
     });
 </script>
